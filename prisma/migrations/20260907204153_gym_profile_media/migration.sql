@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "gyms" ADD COLUMN     "claimed" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "image_url" TEXT,
+ADD COLUMN     "latitude" DOUBLE PRECISION,
+ADD COLUMN     "longitude" DOUBLE PRECISION,
+ADD COLUMN     "view_count" INTEGER NOT NULL DEFAULT 0;

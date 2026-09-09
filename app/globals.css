@@ -1,26 +1,508 @@
 @import "tailwindcss";
 
+/* ── Apex design tokens ───────────────────────────────────────
+   Neutral canvas + one brand accent (indigo-violet).
+   Green/red are reserved for semantics (progress, payment state)
+   so they never compete with the brand colour.               */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #f7f7f9;
+  --surface: #ffffff;
+  --surface-muted: #f2f2f5;
+  --surface-hover: #f7f7f9;
+  --foreground: #14141b;
+  --muted-foreground: #6a6a7c;
+  --subtle-foreground: #8e8ea0;
+  --border: #e6e6ec;
+  --border-strong: #d6d6e0;
+
+  --brand: #5647e5;
+  --brand-hover: #4a3cd4;
+  --brand-foreground: #ffffff;
+  --brand-soft: #eeecfe;
+  --brand-soft-foreground: #4335c4;
+  --brand-ring: rgba(86, 71, 229, 0.35);
+
+  --success: #0f9b52;
+  --success-soft: #e3f7ec;
+  --warning: #b26a00;
+  --warning-soft: #fdf1dd;
+  --danger: #d6373d;
+  --danger-soft: #fdeaea;
+  --info: #0c73d8;
+  --info-soft: #e6f1fd;
+
+  --chart-1: #5647e5;
+  --chart-2: #0aa5a0;
+  --chart-3: #e08a1e;
+  --chart-4: #d6467f;
+  --chart-5: #7a8ba6;
+
+  --shadow-card: 0 1px 2px rgba(20, 20, 27, 0.04), 0 1px 3px rgba(20, 20, 27, 0.03);
+  --shadow-raised: 0 4px 12px -2px rgba(20, 20, 27, 0.08), 0 2px 6px -2px rgba(20, 20, 27, 0.05);
+  --shadow-overlay: 0 16px 48px -12px rgba(20, 20, 27, 0.22);
+}
+
+.dark {
+  color-scheme: dark;
+  /* Near-neutral charcoal, not a purple-tinted one. The previous dark mode
+     tinted every surface violet, which smeared into the accent and left the
+     UI hazy. Keeping the greys neutral lets the same brand colour read as a
+     deliberate accent instead of a wash. */
+  --background: #0c0c12;
+  --surface: #17171f;
+  --surface-muted: #1f1f29;
+  --surface-hover: #272733;
+  --foreground: #f3f3f7;
+  --muted-foreground: #a8a8b8;
+  --subtle-foreground: #7d7d8f;
+  --border: #2a2a36;
+  --border-strong: #3b3b4a;
+
+  /* Lifted from #7c6cff: this clears 4.5:1 on the dark surfaces, where the
+     old value sat just under it for body-sized text. */
+  --brand: #8f80ff;
+  --brand-hover: #a294ff;
+  --brand-foreground: #0c0c14;
+  /* Desaturated chip background with a much brighter label — the old pairing
+     glowed and the text on it was hard to read. */
+  --brand-soft: #241f42;
+  --brand-soft-foreground: #c7bcff;
+  --brand-ring: rgba(143, 128, 255, 0.38);
+
+  --success: #3ecf7e;
+  --success-soft: #10281b;
+  --warning: #e8a33d;
+  --warning-soft: #2b2010;
+  --danger: #f0696f;
+  --danger-soft: #2d1417;
+  --info: #5aa2f5;
+  --info-soft: #101f2f;
+
+  --chart-1: #8f80ff;
+  --chart-2: #2fc6bf;
+  --chart-3: #e8a33d;
+  --chart-4: #f0709f;
+  --chart-5: #8f9fba;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+  --shadow-raised: 0 8px 24px -6px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045) inset;
+  --shadow-overlay: 0 16px 48px -12px rgba(0, 0, 0, 0.78);
+
+  --mk-bg: #0b0b11;
+  --mk-fg: #ffffff;
+  --mk-fg-muted: rgba(255, 255, 255, 0.56);
+  --mk-fg-subtle: rgba(255, 255, 255, 0.36);
+  --mk-border: rgba(255, 255, 255, 0.08);
+  --mk-border-strong: rgba(255, 255, 255, 0.15);
+  --mk-panel: rgba(255, 255, 255, 0.03);
+  --mk-panel-strong: rgba(255, 255, 255, 0.07);
+  --mk-preview: #111119;
+  --mk-hero:
+    radial-gradient(64rem 40rem at 50% -22%, rgba(143, 128, 255, 0.32), transparent 62%),
+    radial-gradient(40rem 28rem at 90% 6%, rgba(47, 198, 191, 0.14), transparent 62%);
+
+  --globe-ocean: #0a1020;
+  --globe-land: #32324e;
+  --globe-land-edge: rgba(255, 255, 255, 0.16);
+  --globe-graticule: rgba(255, 255, 255, 0.07);
+}
+
+/* Same palette again for viewers who have never chosen a theme and whose OS
+   asks for dark. Deliberate duplication: an @media block cannot be part of a
+   selector list, and the alternative is a pre-paint inline script. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    /* Near-neutral charcoal, not a purple-tinted one. The previous dark mode
+       tinted every surface violet, which smeared into the accent and left the
+       UI hazy. Keeping the greys neutral lets the same brand colour read as a
+       deliberate accent instead of a wash. */
+    --background: #0c0c12;
+    --surface: #17171f;
+    --surface-muted: #1f1f29;
+    --surface-hover: #272733;
+    --foreground: #f3f3f7;
+    --muted-foreground: #a8a8b8;
+    --subtle-foreground: #7d7d8f;
+    --border: #2a2a36;
+    --border-strong: #3b3b4a;
+
+    /* Lifted from #7c6cff: this clears 4.5:1 on the dark surfaces, where the
+       old value sat just under it for body-sized text. */
+    --brand: #8f80ff;
+    --brand-hover: #a294ff;
+    --brand-foreground: #0c0c14;
+    /* Desaturated chip background with a much brighter label — the old pairing
+       glowed and the text on it was hard to read. */
+    --brand-soft: #241f42;
+    --brand-soft-foreground: #c7bcff;
+    --brand-ring: rgba(143, 128, 255, 0.38);
+
+    --success: #3ecf7e;
+    --success-soft: #10281b;
+    --warning: #e8a33d;
+    --warning-soft: #2b2010;
+    --danger: #f0696f;
+    --danger-soft: #2d1417;
+    --info: #5aa2f5;
+    --info-soft: #101f2f;
+
+    --chart-1: #8f80ff;
+    --chart-2: #2fc6bf;
+    --chart-3: #e8a33d;
+    --chart-4: #f0709f;
+    --chart-5: #8f9fba;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+    --shadow-raised: 0 8px 24px -6px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045) inset;
+    --shadow-overlay: 0 16px 48px -12px rgba(0, 0, 0, 0.78);
+    --mk-bg: #0b0b11;
+    --mk-fg: #ffffff;
+    --mk-fg-muted: rgba(255, 255, 255, 0.56);
+    --mk-fg-subtle: rgba(255, 255, 255, 0.36);
+    --mk-border: rgba(255, 255, 255, 0.08);
+    --mk-border-strong: rgba(255, 255, 255, 0.15);
+    --mk-panel: rgba(255, 255, 255, 0.03);
+    --mk-panel-strong: rgba(255, 255, 255, 0.07);
+    --mk-preview: #111119;
+    --mk-hero:
+      radial-gradient(64rem 40rem at 50% -22%, rgba(143, 128, 255, 0.32), transparent 62%),
+      radial-gradient(40rem 28rem at 90% 6%, rgba(47, 198, 191, 0.14), transparent 62%);
+
+    --globe-ocean: #0a1020;
+    --globe-land: #32324e;
+    --globe-land-edge: rgba(255, 255, 255, 0.16);
+    --globe-graticule: rgba(255, 255, 255, 0.07);
+  }
+}
+
+/* ── Marketing surface ────────────────────────────────────────
+   The landing page is its own canvas: full-bleed panels on a flat
+   ground rather than the app's cards on a wash. It needs its own
+   tokens so it can flip with the theme instead of being locked dark. */
+
+:root {
+  --mk-bg: #ffffff;
+  --mk-fg: #14141b;
+  --mk-fg-muted: #55556a;
+  --mk-fg-subtle: #8b8b9c;
+  --mk-border: #eaeaf0;
+  --mk-border-strong: #dcdce6;
+  --mk-panel: #fafafc;
+  --mk-panel-strong: #f1f1f6;
+  --mk-preview: #ffffff;
+  --mk-hero:
+    radial-gradient(64rem 40rem at 50% -22%, rgba(86, 71, 229, 0.14), transparent 62%),
+    radial-gradient(40rem 28rem at 90% 6%, rgba(10, 165, 160, 0.08), transparent 62%);
+
+  --globe-ocean: #c6d2ee;
+  --globe-land: #fbfbfe;
+  --globe-land-edge: rgba(20, 20, 27, 0.22);
+  --globe-graticule: rgba(20, 20, 27, 0.10);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-hover: var(--surface-hover);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft-foreground: var(--brand-soft-foreground);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --font-sans: var(--font-capriola), ui-rounded, system-ui, sans-serif;
+  --font-display: var(--font-capriola), ui-rounded, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-card: 0.875rem;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numbers in tables/KPIs should not jitter between values. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Big figures borrow the display face so KPIs feel drawn, not typed. */
+  .figure {
+    font-family: var(--font-display);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.012em;
+  }
+
+  body {
+    line-height: 1.5;
+  }
+
+  /* Identifiers stay in mono — people read these out over a counter. */
+  .font-mono,
+  code,
+  kbd {
+    font-family: var(--font-mono);
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    background: var(--brand-soft);
+    color: var(--brand-soft-foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--surface-muted) 25%,
+      var(--surface-hover) 37%,
+      var(--surface-muted) 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+  }
+
+  /* Testimonial marquee. The track holds two identical copies, so shifting
+     it by exactly half its width loops seamlessly. */
+  .marquee-track {
+    animation: marquee 46s linear infinite;
+  }
+
+  .marquee-viewport:hover .marquee-track,
+  .marquee-viewport:focus-within .marquee-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* Pricing cards: lift and warm on hover so the eye lands on one. */
+  .price-card {
+    transition:
+      transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.22s ease,
+      border-color 0.22s ease,
+      background-color 0.22s ease;
+  }
+
+  .price-card:hover {
+    transform: translateY(-5px);
+  }
+
+  /* The offer badge breathes rather than blinks — enough to catch the eye
+     without becoming the loudest thing on the page. */
+  .offer-pulse {
+    animation: offer-pulse 2.6s ease-in-out infinite;
+  }
+
+  @keyframes offer-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.035); opacity: 0.92; }
+  }
+
+  /* The lifetime card's border, which slowly travels so the eye returns to it.
+     Two layers: the panel fill, then a moving conic gradient clipped to the
+     border box. */
+  .lifetime-card {
+    /* The fill has to be opaque: the marketing panel token is barely-there
+       white, and the glow behind the card would otherwise shine straight
+       through the text. */
+    background:
+      linear-gradient(
+          160deg,
+          color-mix(in srgb, var(--mk-bg) 88%, var(--warning) 12%),
+          color-mix(in srgb, var(--mk-bg) 94%, var(--brand) 6%)
+        )
+        padding-box,
+      conic-gradient(
+          from var(--lifetime-angle),
+          var(--warning),
+          var(--brand),
+          var(--warning),
+          var(--brand),
+          var(--warning)
+        )
+        border-box;
+    border: 1.5px solid transparent;
+    animation: lifetime-sweep 9s linear infinite;
+  }
+
+  @property --lifetime-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  @keyframes lifetime-sweep {
+    to {
+      --lifetime-angle: 360deg;
+    }
+  }
+
+  .animate-in-up {
+    animation: in-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes in-up {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Squashing the duration would snap the marquee to its end frame. Stop it
+     instead and let the row scroll by hand. */
+  .marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .offer-pulse {
+    animation: none !important;
+  }
+
+  .price-card:hover {
+    transform: none;
+  }
+
+  .marquee-viewport {
+    overflow-x: auto;
+  }
+}
+
+/* ── Ambient app background ───────────────────────────────────
+   A flat fill made long pages feel dead and washed the text out.
+   Two fixed radial washes plus a hairline grid give depth without
+   ever sitting close enough to the text to hurt contrast.       */
+
+@layer base {
+  body {
+    background-image: var(--app-wash), var(--app-grid);
+    background-attachment: fixed, fixed;
+    background-repeat: no-repeat, repeat;
+    background-size: cover, 56px 56px;
+  }
+}
+
+:root {
+  --app-wash:
+    radial-gradient(58rem 38rem at 12% -12%, rgba(86, 71, 229, 0.09), transparent 62%),
+    radial-gradient(46rem 32rem at 96% 2%, rgba(10, 165, 160, 0.06), transparent 60%);
+  --app-grid:
+    linear-gradient(to right, rgba(20, 20, 27, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 20, 27, 0.028) 1px, transparent 1px);
+}
+
+.dark,
+:root:not(.light) {
+  --app-wash:
+    radial-gradient(60rem 40rem at 12% -14%, rgba(143, 128, 255, 0.085), transparent 60%),
+    radial-gradient(46rem 32rem at 98% 0%, rgba(47, 198, 191, 0.05), transparent 58%);
+  --app-grid:
+    linear-gradient(to right, rgba(255, 255, 255, 0.016) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not(.dark) {
+    --app-wash:
+      radial-gradient(58rem 38rem at 12% -12%, rgba(86, 71, 229, 0.09), transparent 62%),
+      radial-gradient(46rem 32rem at 96% 2%, rgba(10, 165, 160, 0.06), transparent 60%);
+    --app-grid:
+      linear-gradient(to right, rgba(20, 20, 27, 0.028) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(20, 20, 27, 0.028) 1px, transparent 1px);
+  }
+}
+
+@layer utilities {
+  /* Panels get a top-lit gradient so they read as objects on the wash
+     rather than flat rectangles cut out of it. */
+  .panel-lit {
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--foreground) 4%, transparent),
+      transparent 60%
+    );
+  }
+
+  /* Cards sit slightly above the wash so text keeps its contrast. */
+  .surface-raised {
+    background-color: color-mix(in oklab, var(--surface) 92%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Section banner used at the top of the programmes screen. */
+  .section-hero {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .section-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(40rem 20rem at 8% 0%, var(--hero-a), transparent 65%),
+      radial-gradient(32rem 18rem at 92% 100%, var(--hero-b), transparent 62%);
+  }
 }

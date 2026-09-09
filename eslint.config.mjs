@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Electron shell is CommonJS Node, not part of the Next build.
   ]),
 ]);
 

@@ -1,0 +1,834 @@
+// Apex — multi-tenant gym platform
+//
+// Tenancy: every operational row belongs to exactly one GYM. A gym is created
+// by its owner at signup and issued a public `code` that staff and members use
+// to sign in. SUPER_ADMIN users sit above tenancy (gymId is null) and run the
+// platform itself.
+//
+//   PLATFORM ─▶ GYM ─▶ PLANS ─▶ SUBSCRIPTIONS ─▶ MEMBER
+//                 │                   │
+//                 │                   ├── Payments
+//                 │                   ├── Sessions
+//                 │                   └── Check-ins ─▶ Body measurements
+//                 └── Attendance (daily floor traffic)
+//
+// `gymId` is carried directly on tenant-scoped tables rather than being
+// resolved through joins: it keeps every authorization filter a single
+// indexed predicate, which is what makes tenant isolation easy to audit.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  /// Platform operator. Not attached to any gym.
+  SUPER_ADMIN
+  /// Signed up the gym; full control of that tenant.
+  GYM_OWNER
+  /// Works at the gym — manager, front desk or trainer.
+  GYM_STAFF
+  /// Trains at the gym; signs in with the gym code + member code.
+  MEMBER
+  /// Registered on the marketing site but has not bought a plan yet, so no
+  /// gym exists for them. Converts to GYM_OWNER when an order is paid.
+  PROSPECT
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  /// Six months for the price of five.
+  SEMIANNUAL
+  ANNUAL
+  /// Paid once, never billed again.
+  LIFETIME
+}
+
+enum GymStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+/// What the gym pays the platform.
+/**
+ * What a gym bought. There is no free tier: every gym on the platform has
+ * paid, and the only question is whether their access runs out.
+ */
+enum PlatformTier {
+  /// $10 for 30 days of everything, renewable.
+  PRO
+  /// $149 once for the same thing, for good.
+  ELITE
+}
+
+/// What a link on a gym's pin points at.
+enum GymLinkKind {
+  WEBSITE
+  INSTAGRAM
+  FACEBOOK
+  YOUTUBE
+  WHATSAPP
+  MAPS
+  PHONE
+  EMAIL
+  OTHER
+}
+
+enum AttendanceSource {
+  FRONT_DESK
+  MEMBER_APP
+  TURNSTILE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNDISCLOSED
+}
+
+enum PlanType {
+  ONE_TO_ONE_COACHING
+  TRANSFORMATION
+  NUTRITION_COACHING
+  CONSULTATION
+  GROUP_COACHING
+}
+
+enum BillingInterval {
+  ONE_TIME
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAUSED
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NET_BANKING
+  BANK_TRANSFER
+  CASH
+}
+
+
+
+/// A purchase of a BeOnGym subscription by a prospective gym owner.
+///
+/// The gym is provisioned from a paid order, which is why `gymId` is nullable:
+/// the order exists first and the tenant is created when payment lands. No
+/// gateway is wired yet, so `provider` is "manual" for now — Razorpay or Dodo
+/// will simply fill in `providerRef` and flip the status.
+/**
+ * An outbound link on a gym's map pin.
+ *
+ * This is the whole of what the free tier sells: a spot on the globe and a way
+ * to leave it. `clickCount` is the number the owner actually cares about — how
+ * many people the map sent them — so it is a column on the row rather than
+ * something derived from an events table nobody would keep.
+ */
+model GymLink {
+  id         String      @id @default(cuid())
+  gymId      String      @map("gym_id")
+  kind       GymLinkKind
+  /// Owner-facing label, e.g. "Book a trial".
+  label      String?
+  url        String
+  clickCount Int         @default(0) @map("click_count")
+  sortOrder  Int         @default(0) @map("sort_order")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@map("gym_links")
+}
+
+model PlatformOrder {
+  id           String       @id @default(cuid())
+  /// Null for a map listing bought without an account — the whole point of
+  /// that flow is that you pay before you have one.
+  userId       String?      @map("user_id")
+  /// Who bought it, when there is no account to look that up from.
+  email        String?
+  gymId        String?      @unique @map("gym_id")
+  tier         PlatformTier
+  billingCycle BillingCycle @default(MONTHLY) @map("billing_cycle")
+  amount       Decimal      @db.Decimal(12, 2)
+  currency     String       @default("USD")
+  status       OrderStatus  @default(PENDING)
+  provider     String?
+  providerRef  String?      @map("provider_ref")
+  /// Captured at checkout so the gym can be created the moment payment lands.
+  gymName      String       @map("gym_name")
+  city         String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  paidAt       DateTime?    @map("paid_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym  Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("platform_orders")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TENANT
+// ─────────────────────────────────────────────────────────────
+
+/// One gym. Everything below this line is scoped to a gym except the
+/// SUPER_ADMIN user rows that operate the platform.
+model Gym {
+  id           String       @id @default(cuid())
+  /// Public identifier members type at sign-in, e.g. "IRON-4821".
+  code         String       @unique
+  name         String
+  tagline      String?
+  city         String?
+  address      String?
+  phone        String?
+  email        String?
+  /// Owner-editable branding.
+  accentColor  String       @default("#7c6cff") @map("accent_color")
+  logoText     String?      @map("logo_text")
+  /// Owner-uploaded profile image, stored as a downscaled 320px data URL.
+  /// Small enough to live in the row; avoids running object storage for a logo.
+  imageUrl     String?      @map("image_url")
+  /// The public store: what a prospective member actually sees.
+  description  String?
+  amenities    String[]     @default([])
+  openingHours String?      @map("opening_hours")
+  /// Owners can take themselves out of the directory without cancelling.
+  listed       Boolean      @default(true)
+  /// Pin on the public map. Null means the gym never set a location, so it is
+  /// listed but not plotted.
+  latitude     Float?
+  longitude    Float?
+  /// Resolved from the city when the gym is listed. Used for the country
+  /// filter and to tint the countries that have gyms on the globe.
+  country      String?
+  /// Public profile views. Social proof on the directory, not analytics.
+  viewCount    Int          @default(0) @map("view_count")
+  /// False for gyms seeded from public data that no owner has taken over yet —
+  /// those are the ones offered under "claim this gym".
+  claimed      Boolean      @default(true)
+  /// Set when a Pro owner finishes setting up their store. Until then the
+  /// public page says the store is still being built and the owner is nudged.
+  storeSetupAt DateTime?    @map("store_setup_at")
+  status       GymStatus    @default(TRIAL)
+  tier         PlatformTier @default(PRO)
+  /**
+   * When paid access runs out.
+   *
+   * Three states, and the difference matters: a future date is a live Pro
+   * membership, a past date is one that lapsed, and null means this gym has
+   * never had access at all — an unclaimed listing we compiled, not a customer.
+   * Elite ignores the column entirely; lifetime is lifetime.
+   *
+   * Renewing extends from this date rather than from today, so paying early
+   * never costs anybody the days they already bought.
+   */
+  accessExpiresAt DateTime? @map("access_expires_at")
+  /**
+   * The gym's own check-in code — one per gym, for good.
+   *
+   * It is what the QR poster on the wall encodes, so it has to survive being
+   * printed and stuck to a door: no rotation, no expiry. Random rather than
+   * derived from the id so a leaked poster can be revoked by generating a new
+   * one, and unguessable so nobody checks in from the car park.
+   */
+  checkInCode  String       @unique @default(cuid()) @map("check_in_code")
+  trialEndsAt  DateTime?    @map("trial_ends_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  users        User[]
+  staff        TrainerProfile[]
+  members      ClientProfile[]
+  plans        Plan[]
+  attendance   Attendance[]
+  links        GymLink[]
+  order        PlatformOrder?
+  messageRules MessageRule[]
+  messages     MessageLog[]
+  classes      GymClass[]
+  leads        Lead[]
+
+  @@index([status])
+  @@map("gyms")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CORE MODEL
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  /// Null for SUPER_ADMIN; set for every gym owner, staff member and member.
+  gymId        String?   @map("gym_id")
+  name         String
+  /// Optional: members can be onboarded with a member code and no email.
+  email        String?   @unique
+  phone        String?
+  passwordHash String    @map("password_hash")
+  role         Role      @default(MEMBER)
+  /// Deactivated accounts cannot sign in, but everything they authored —
+  /// plans, sessions, notes — stays intact. This is why staff are never
+  /// hard-deleted from the gym UI.
+  isActive     Boolean   @default(true) @map("is_active")
+  avatarUrl    String?   @map("avatar_url")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  gym            Gym?            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  trainerProfile TrainerProfile?
+  clientProfile  ClientProfile?
+  orders         PlatformOrder[]
+
+  @@index([email])
+  @@index([gymId])
+  @@index([role])
+  @@map("users")
+}
+
+/// A person who works at the gym: owner, manager or trainer.
+model TrainerProfile {
+  id              String   @id @default(cuid())
+  gymId           String   @map("gym_id")
+  userId          String   @unique @map("user_id")
+  title           String?
+  bio             String?
+  specialization  String?
+  experienceYears Int?     @map("experience_years")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  gym      Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plans    Plan[]
+  notes    TrainerNote[]
+  clients  ClientProfile[]
+  classes  GymClass[]
+
+  @@index([gymId])
+  @@map("trainer_profiles")
+}
+
+/// A member of the gym.
+model ClientProfile {
+  id          String    @id @default(cuid())
+  gymId       String    @map("gym_id")
+  /// Sequential, gym-scoped ID the owner hands out, e.g. "M-0042".
+  memberCode  String    @map("member_code")
+  userId      String    @unique @map("user_id")
+  // Owning coach. The billing relationship still runs through
+  // Plan -> Subscription; this makes roster access explicit and cheap.
+  trainerId   String?   @map("trainer_id")
+  dateOfBirth DateTime? @map("date_of_birth") @db.Date
+  gender      Gender?
+  height      Decimal?  @db.Decimal(5, 2) // cm
+  fitnessGoal String?   @map("fitness_goal")
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  gym           Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainer       TrainerProfile? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  attendance    Attendance[]
+  subscriptions Subscription[]
+  trainerNotes  TrainerNote[]
+  exerciseLogs  ExerciseLog[]
+  messages      MessageLog[]
+  bookings      ClassBooking[]
+
+  @@unique([gymId, memberCode])
+  @@index([trainerId])
+  @@index([gymId])
+  @@map("client_profiles")
+}
+
+/// A membership or coaching package the gym sells.
+model Plan {
+  id              String          @id @default(cuid())
+  gymId           String          @map("gym_id")
+  trainerId       String          @map("trainer_id")
+  name            String
+  description     String?
+  planType        PlanType        @map("plan_type")
+  durationDays    Int             @map("duration_days")
+  price           Decimal         @db.Decimal(12, 2)
+  currency        String          @default("INR")
+  billingInterval BillingInterval @map("billing_interval")
+  /// Public price visibility. Off by default: a gym's rates are its own
+  /// business until the owner decides to publish them on the store.
+  showPrice       Boolean         @default(false) @map("show_price")
+  isActive        Boolean         @default(true) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  trainer       TrainerProfile @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+  workoutPlans  WorkoutPlan[]
+  dietPlans     DietPlan[]
+
+  @@index([trainerId])
+  @@index([gymId])
+  @@map("plans")
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  clientId  String             @map("client_id")
+  planId    String             @map("plan_id")
+  startDate DateTime           @map("start_date") @db.Date
+  endDate   DateTime           @map("end_date") @db.Date
+  status    SubscriptionStatus @default(ACTIVE)
+  autoRenew Boolean            @default(false) @map("auto_renew")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  // Restrict: historical subscription rows must survive client/plan cleanup.
+  client   ClientProfile @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  plan     Plan          @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments Payment[]
+
+  @@index([clientId])
+  @@index([planId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  subscriptionId String        @map("subscription_id")
+  amount         Decimal       @db.Decimal(12, 2)
+  currency       String        @default("INR")
+  paymentDate    DateTime      @map("payment_date")
+  paymentMethod  PaymentMethod @map("payment_method")
+  transactionId  String?       @unique @map("transaction_id")
+  status         PaymentStatus @default(SUCCESSFUL)
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@index([subscriptionId])
+  @@index([paymentDate])
+  @@index([status])
+  @@map("payments")
+}
+
+
+
+
+/// PRIVATE. Never returned by any client-facing query or API route.
+model TrainerNote {
+  id        String   @id @default(cuid())
+  trainerId String   @map("trainer_id")
+  clientId  String   @map("client_id")
+  note      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  trainer TrainerProfile @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  client  ClientProfile  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([trainerId])
+  @@index([clientId])
+  @@map("trainer_notes")
+}
+
+model WorkoutPlan {
+  id          String   @id @default(cuid())
+  planId      String   @map("plan_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  plan Plan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  days WorkoutDay[]
+
+  @@index([planId])
+  @@map("workout_plans")
+}
+
+model DietPlan {
+  id             String   @id @default(cuid())
+  planId         String   @map("plan_id")
+  name           String
+  description    String?
+  caloriesTarget Int?     @map("calories_target")
+  proteinTarget  Int?     @map("protein_target")
+  carbsTarget    Int?     @map("carbs_target")
+  fatsTarget     Int?     @map("fats_target")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  plan  Plan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  meals MealGuideline[]
+
+  @@index([planId])
+  @@map("diet_plans")
+}
+
+/// Floor traffic. One row per visit; `checkOutAt` stays null while the member
+/// is still inside, which is what drives live occupancy.
+model Attendance {
+  id         String           @id @default(cuid())
+  gymId      String           @map("gym_id")
+  memberId   String           @map("member_id")
+  checkInAt  DateTime         @default(now()) @map("check_in_at")
+  checkOutAt DateTime?        @map("check_out_at")
+  source     AttendanceSource @default(FRONT_DESK)
+  note       String?
+
+  gym    Gym           @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member ClientProfile @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, checkInAt])
+  @@index([memberId, checkInAt])
+  @@map("attendance")
+}
+
+// ─────────────────────────────────────────────────────────────
+// EXTENSIONS
+// Additive detail on top of the core WorkoutPlan / DietPlan rows.
+// Nothing in the core model depends on these tables.
+// ─────────────────────────────────────────────────────────────
+
+model WorkoutDay {
+  id            String  @id @default(cuid())
+  workoutPlanId String  @map("workout_plan_id")
+  title         String // "Upper Body", "Push A"
+  dayOfWeek     Int     @map("day_of_week") // 1 = Monday ... 7 = Sunday
+  focus         String?
+  sortOrder     Int     @default(0) @map("sort_order")
+
+  workoutPlan WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  exercises   Exercise[]
+
+  @@index([workoutPlanId])
+  @@map("workout_days")
+}
+
+model Exercise {
+  id           String  @id @default(cuid())
+  workoutDayId String  @map("workout_day_id")
+  name         String
+  sets         Int
+  reps         String // "10", "8-12", "AMRAP"
+  restSeconds  Int?    @map("rest_seconds")
+  tempo        String?
+  coachCue     String? @map("coach_cue")
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  workoutDay WorkoutDay    @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  logs       ExerciseLog[]
+
+  @@index([workoutDayId])
+  @@map("exercises")
+}
+
+/// EXTENSION: one row per exercise a client ticks off on a given day.
+/// Drives the real completion percentage on the client workout screen.
+model ExerciseLog {
+  id         String   @id @default(cuid())
+  clientId   String   @map("client_id")
+  exerciseId String   @map("exercise_id")
+  logDate    DateTime @map("log_date") @db.Date
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  client   ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  exercise Exercise      @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, exerciseId, logDate])
+  @@index([clientId, logDate])
+  @@map("exercise_logs")
+}
+
+model MealGuideline {
+  id          String  @id @default(cuid())
+  dietPlanId  String  @map("diet_plan_id")
+  title       String // "Breakfast"
+  timing      String? // "7:30 - 8:30 AM"
+  description String
+  calories    Int?
+  protein     Int?
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  dietPlan DietPlan @relation(fields: [dietPlanId], references: [id], onDelete: Cascade)
+
+  @@index([dietPlanId])
+  @@map("meal_guidelines")
+}
+
+// ─────────────────────────────────────────────────────────────
+// MESSAGING (extension)
+// ─────────────────────────────────────────────────────────────
+
+/// What a message is for. Each gym has at most one rule per kind.
+enum MessageKind {
+  /// The membership runs out in `daysBefore` days.
+  EXPIRY_REMINDER
+  /// Money is owed on a live membership.
+  DUES_CHASE
+  /// It is their birthday.
+  BIRTHDAY
+  /// They joined today.
+  WELCOME
+}
+
+enum MessageStatus {
+  /// Written and waiting for somebody to send it.
+  QUEUED
+  SENT
+  /// Deliberately not sent — the desk dismissed it.
+  SKIPPED
+  FAILED
+}
+
+/// One gym's rule for one kind of message.
+///
+/// The template is stored as the owner wrote it, with `{{name}}`-style
+/// placeholders filled at queue time. Storing the rendered text on the log
+/// rather than re-rendering it later means the record says exactly what was
+/// sent, even after the template is edited.
+model MessageRule {
+  id         String      @id @default(cuid())
+  gymId      String      @map("gym_id")
+  kind       MessageKind
+  enabled    Boolean     @default(true)
+  /// Days of notice. Only meaningful for the reminders that have a lead time.
+  daysBefore Int?        @map("days_before")
+  template   String
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  gym  Gym          @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  logs MessageLog[]
+
+  @@unique([gymId, kind])
+  @@map("message_rules")
+}
+
+/// One message, for one member, on one day.
+///
+/// `dueOn` is the day the message is *for*, not the day it was written, and it
+/// is part of the unique key: that is what stops a member being chased twice
+/// for the same expiry when the queue is rebuilt.
+model MessageLog {
+  id       String        @id @default(cuid())
+  gymId    String        @map("gym_id")
+  clientId String?       @map("client_id")
+  ruleId   String?       @map("rule_id")
+  kind     MessageKind
+  /// The number as it will be dialled, kept even if the member's changes later.
+  phone    String
+  /// The rendered text, exactly as it goes out.
+  body     String
+  status   MessageStatus @default(QUEUED)
+  dueOn    DateTime      @map("due_on") @db.Date
+  sentAt   DateTime?     @map("sent_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  gym    Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  rule   MessageRule?   @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@unique([clientId, kind, dueOn])
+  @@index([gymId, status])
+  @@index([gymId, dueOn])
+  @@map("message_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CLASSES (extension)
+// ─────────────────────────────────────────────────────────────
+
+enum BookingStatus {
+  BOOKED
+  /// The room was full when they asked; first off the list when a spot frees.
+  WAITLIST
+  ATTENDED
+  CANCELLED
+  NO_SHOW
+}
+
+/// A recurring slot on the timetable — "Spin, Tuesdays, 7pm, 14 bikes".
+///
+/// Stored as one row per weekly slot rather than one per occurrence: a gym's
+/// timetable changes a few times a year and its classes run every week, so
+/// materialising every future Tuesday would be thousands of rows nobody reads.
+/// Bookings carry the date, which is what makes an occurrence real.
+model GymClass {
+  id              String   @id @default(cuid())
+  gymId           String   @map("gym_id")
+  coachId         String?  @map("coach_id")
+  name            String
+  description     String?
+  /// 1 = Monday … 7 = Sunday, matching WorkoutDay.
+  dayOfWeek       Int      @map("day_of_week")
+  /**
+   * Set for a one-off: a class that runs on this date and no other.
+   *
+   * Null is the ordinary case — a weekly slot that repeats. Keeping both in one
+   * table means the timetable is one query, and a one-off behaves exactly like
+   * a recurring class everywhere else (bookings, capacity, the register).
+   */
+  date            DateTime? @db.Date
+  /// "18:30" — local to the gym, which is the only clock that matters here.
+  startTime       String   @map("start_time")
+  durationMinutes Int      @default(45) @map("duration_minutes")
+  /// How many people the room holds. Bookings past it go on the waitlist.
+  capacity        Int      @default(12)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  gym           Gym               @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  coach         TrainerProfile?   @relation(fields: [coachId], references: [id], onDelete: SetNull)
+  bookings      ClassBooking[]
+  cancellations ClassCancellation[]
+
+  @@index([gymId, dayOfWeek])
+  @@map("gym_classes")
+}
+
+/// One member, in one class, on one date.
+model ClassBooking {
+  id        String        @id @default(cuid())
+  classId   String        @map("class_id")
+  memberId  String        @map("member_id")
+  /// The day the class runs. Together with the class it is the occurrence.
+  date      DateTime      @db.Date
+  status    BookingStatus @default(BOOKED)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  gymClass GymClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  member   ClientProfile @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, memberId, date])
+  @@index([classId, date])
+  @@index([memberId])
+  @@map("class_bookings")
+}
+
+// ─────────────────────────────────────────────────────────────
+// LEADS (extension)
+// ─────────────────────────────────────────────────────────────
+
+/// Where the enquiry came from. Kept short: a list nobody scrolls gets used.
+enum LeadSource {
+  WALK_IN
+  CALL
+  WHATSAPP
+  INSTAGRAM
+  REFERRAL
+  WEBSITE
+  /// Found the gym on the BeOnGym map.
+  MAP
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  /// Coming in for a look or a trial session.
+  TRIAL_BOOKED
+  JOINED
+  LOST
+}
+
+/// Somebody who asked about joining.
+///
+/// Deliberately not a `User`: most enquiries never join, and filling the roster
+/// with people who walked past once makes every member count a lie.
+model Lead {
+  id             String     @id @default(cuid())
+  gymId          String     @map("gym_id")
+  name           String
+  phone          String?
+  email          String?
+  source         LeadSource @default(WALK_IN)
+  status         LeadStatus @default(NEW)
+  /// What they came in asking about — "weight loss", "the 6am batch".
+  interest       String?
+  notes          String?
+  /// When to ring them. The one field that turns a list into a follow-up list.
+  nextFollowUpAt DateTime?  @map("next_follow_up_at") @db.Date
+  /// Set when they joined, so conversion is a fact rather than a guess.
+  joinedAt       DateTime?  @map("joined_at")
+  /// Why they didn't, in their words. Worth more than the status alone.
+  lostReason     String?    @map("lost_reason")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  gym      Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  activity LeadActivity[]
+
+  @@index([gymId, status])
+  @@index([gymId, nextFollowUpAt])
+  @@map("leads")
+}
+
+/// One thing that happened with a lead: a call, a message, a visit.
+model LeadActivity {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  /// Free text, because a follow-up is a sentence, not a form.
+  note      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@map("lead_activity")
+}
+
+/// One occurrence of a recurring class that is not running.
+///
+/// A public holiday, a coach away, a room double-booked. Cheaper and safer than
+/// materialising every occurrence just so a few of them can be struck out.
+model ClassCancellation {
+  id        String   @id @default(cuid())
+  classId   String   @map("class_id")
+  date      DateTime @db.Date
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  gymClass GymClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, date])
+  @@index([classId])
+  @@map("class_cancellations")
+}

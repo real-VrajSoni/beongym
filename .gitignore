@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/lib/generated
+.env
+
+# …but the example, which is placeholders, documents what a deploy needs.
+!.env.example
+
+# Local Claude Code skill symlinks — machine-specific, not project source.
+.claude/skills/
