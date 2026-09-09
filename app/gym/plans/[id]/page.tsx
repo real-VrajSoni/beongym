@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Apple, Dumbbell, IndianRupee, Users } from "lucide-react";
+import { Apple, Banknote, Dumbbell, Users } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { num } from "@/lib/data/serialize";
@@ -35,7 +35,12 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
     where: { id, gymId: session.gymId },
     include: {
       workoutPlans: {
-        include: { days: { orderBy: { sortOrder: "asc" }, include: { exercises: { orderBy: { sortOrder: "asc" } } } } },
+        include: {
+          days: {
+            orderBy: { sortOrder: "asc" },
+            include: { exercises: { orderBy: { sortOrder: "asc" } } },
+          },
+        },
       },
       dietPlans: { include: { meals: { orderBy: { sortOrder: "asc" } } } },
       subscriptions: {
@@ -57,7 +62,9 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
   const revenue = plan.subscriptions.reduce(
     (acc, s) =>
       acc +
-      s.payments.filter((p) => p.status === "SUCCESSFUL").reduce((a, p) => a + (num(p.amount) ?? 0), 0),
+      s.payments
+        .filter((p) => p.status === "SUCCESSFUL")
+        .reduce((a, p) => a + (num(p.amount) ?? 0), 0),
     0,
   );
   const workout = plan.workoutPlans[0] ?? null;
@@ -75,7 +82,9 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-[22px] leading-tight font-semibold sm:text-[26px]">{plan.name}</h1>
+              <h1 className="text-[22px] leading-tight font-semibold sm:text-[26px]">
+                {plan.name}
+              </h1>
               {plan.isActive ? (
                 <Badge tone="success" dot>
                   Active
@@ -96,6 +105,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex shrink-0 gap-2">
             <PlanActions
+              currency={plan.currency}
               plan={{
                 planId: plan.id,
                 name: plan.name,
@@ -114,10 +124,15 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Price" value={formatCurrency(price)} icon={IndianRupee} accent />
+        <StatCard
+          label="Price"
+          value={formatCurrency(price, plan.currency)}
+          icon={Banknote}
+          accent
+        />
         <StatCard label="Active clients" value={activeSubs.length} icon={Users} />
         <StatCard label="Total subscriptions" value={plan.subscriptions.length} />
-        <StatCard label="Revenue collected" value={formatCurrency(revenue)} />
+        <StatCard label="Revenue collected" value={formatCurrency(revenue, plan.currency)} />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -166,8 +181,8 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
                     </details>
                   ))}
                   <p className="text-[12px] text-[var(--subtle-foreground)]">
-                    Exercise-level editing isn&rsquo;t in this release — days and exercises are seeded
-                    data shown read-only. The plan name and description above are editable.
+                    Exercise-level editing isn&rsquo;t in this release — days and exercises are
+                    seeded data shown read-only. The plan name and description above are editable.
                   </p>
                 </div>
               ) : null}
@@ -272,7 +287,8 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
                       {s.client.user.name}
                     </Link>
                     <p className="tabular text-[12px] text-muted-foreground">
-                      {formatDate(fromDateOnly(s.startDate))} → {formatDate(fromDateOnly(s.endDate))}
+                      {formatDate(fromDateOnly(s.startDate))} →{" "}
+                      {formatDate(fromDateOnly(s.endDate))}
                     </p>
                   </div>
                   <StatusBadge kind="subscription" status={s.status} />

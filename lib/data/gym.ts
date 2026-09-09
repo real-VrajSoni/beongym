@@ -333,3 +333,18 @@ export async function getFollowUpQueue(gymId: string) {
     ),
   }));
 }
+
+/**
+ * What this gym charges in.
+ *
+ * A separate one-column read rather than a field on the session token: the
+ * token is signed at sign-in and would go stale the moment an owner changed
+ * currency in settings, and `sessionIsLive` rejects a token whose contents no
+ * longer match the database — so putting it there would sign people out for
+ * editing a dropdown. This is an indexed primary-key lookup on a page that is
+ * already querying.
+ */
+export async function getGymCurrency(gymId: string): Promise<string> {
+  const gym = await db.gym.findUnique({ where: { id: gymId }, select: { currency: true } });
+  return gym?.currency ?? "INR";
+}

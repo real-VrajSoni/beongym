@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, Clock, IndianRupee } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getRevenueSeries } from "@/lib/data/gym";
+import { getRevenueSeries, getGymCurrency } from "@/lib/data/gym";
 import { num } from "@/lib/data/serialize";
 import { formatCurrency } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
@@ -19,7 +19,7 @@ export const metadata = { title: "Payments" };
 export default async function PaymentsPage() {
   const session = await requireStaff();
 
-  const [payments, subscriptions, revenue] = await Promise.all([
+  const [payments, subscriptions, revenue, currency] = await Promise.all([
     db.payment.findMany({
       where: { subscription: { plan: { gymId: session.gymId } } },
       orderBy: { paymentDate: "desc" },
@@ -41,6 +41,7 @@ export default async function PaymentsPage() {
       },
     }),
     getRevenueSeries(session.gymId, 6),
+    getGymCurrency(session.gymId),
   ]);
 
   const rows: PaymentRow[] = payments.map((p) => ({
@@ -65,6 +66,7 @@ export default async function PaymentsPage() {
         description="Revenue and every transaction recorded against your programmes."
         actions={
           <RecordPaymentButton
+            currency={currency}
             subscriptions={subscriptions.map((s) => ({
               id: s.id,
               labelText: `${s.client.user.name} — ${s.plan.name}`,
@@ -77,7 +79,7 @@ export default async function PaymentsPage() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Total revenue"
-          value={formatCurrency(total("SUCCESSFUL"))}
+          value={formatCurrency(total("SUCCESSFUL"), currency)}
           icon={IndianRupee}
           accent
           hint="successful payments"
@@ -86,19 +88,19 @@ export default async function PaymentsPage() {
           label="Successful"
           value={rows.filter((r) => r.status === "SUCCESSFUL").length}
           icon={CheckCircle2}
-          hint={formatCurrency(total("SUCCESSFUL"))}
+          hint={formatCurrency(total("SUCCESSFUL"), currency)}
         />
         <StatCard
           label="Pending"
           value={rows.filter((r) => r.status === "PENDING").length}
           icon={Clock}
-          hint={formatCurrency(total("PENDING"))}
+          hint={formatCurrency(total("PENDING"), currency)}
         />
         <StatCard
           label="Failed"
           value={rows.filter((r) => r.status === "FAILED").length}
           icon={AlertCircle}
-          hint={formatCurrency(total("FAILED"))}
+          hint={formatCurrency(total("FAILED"), currency)}
         />
       </div>
 
@@ -113,7 +115,7 @@ export default async function PaymentsPage() {
       </div>
 
       <h2 className="mb-3 text-[15px] font-semibold">Transactions</h2>
-      <PaymentsTable rows={rows} />
+      <PaymentsTable currency={currency} rows={rows} />
 
       <p className="mt-4 text-[12.5px] text-muted-foreground">
         Payments are recorded manually in this release — no gateway is connected. Each row is a real

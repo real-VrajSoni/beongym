@@ -33,7 +33,8 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   if (!gym) return { title: "Gym not found" };
   return {
     title: `${gym.name}${gym.city ? ` · ${gym.city}` : ""}`,
-    description: gym.tagline ?? `${gym.name} on ${BRAND.name}. See what they offer and get in touch.`,
+    description:
+      gym.tagline ?? `${gym.name} on ${BRAND.name}. See what they offer and get in touch.`,
   };
 }
 
@@ -211,7 +212,6 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
       </div>
 
       <main className="mx-auto max-w-5xl px-6 pb-16">
-
         {!gym.claimed ? (
           <div className="mt-7 flex flex-col gap-4 rounded-2xl border border-[var(--brand)]/25 bg-[var(--brand)]/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
@@ -304,6 +304,7 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   {gym.plans.map((p, i) => (
                     <ProgrammeCard
+                      currency={gym.currency}
                       key={p.id}
                       index={i}
                       contactHref={contactHref}
@@ -449,8 +450,8 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
               {managed ? (
                 <p className="mt-4 mb-5 flex items-start gap-2 border-t border-[var(--mk-border)] px-5 pt-4 text-[12px] leading-relaxed text-[var(--mk-fg-muted)]">
                   <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-[var(--brand)]" />
-                  This gym runs its memberships on {BRAND.name} — plans, attendance and progress
-                  all tracked, so ask them what they offer and they can tell you on the spot.
+                  This gym runs its memberships on {BRAND.name} — plans, attendance and progress all
+                  tracked, so ask them what they offer and they can tell you on the spot.
                 </p>
               ) : (
                 <div className="h-5" />

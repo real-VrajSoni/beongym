@@ -54,7 +54,7 @@ export type PlanCardData = {
  * a gym can rename, reprice or drop a programme without leaving the page —
  * each gym runs different packages at different prices.
  */
-export function PlanGrid({ plans }: { plans: PlanCardData[] }) {
+export function PlanGrid({ plans, currency }: { plans: PlanCardData[]; currency: string }) {
   const router = useRouter();
   const { pending, run } = useAction();
   const [formOpen, setFormOpen] = useState(false);
@@ -92,7 +92,7 @@ export function PlanGrid({ plans }: { plans: PlanCardData[] }) {
             action={<Button onClick={openCreate}>Add your first programme</Button>}
           />
         </div>
-        <PlanFormDialog key="new" open={formOpen} onOpenChange={setFormOpen} />
+        <PlanFormDialog currency={currency} key="new" open={formOpen} onOpenChange={setFormOpen} />
       </>
     );
   }
@@ -182,7 +182,7 @@ export function PlanGrid({ plans }: { plans: PlanCardData[] }) {
                   className="tabular text-[25px] leading-none font-semibold"
                   style={{ color: theme.accent }}
                 >
-                  {formatCurrency(plan.price)}
+                  {formatCurrency(plan.price, currency)}
                 </p>
                 {/* Your own price is always yours to see; whether the public
                     sees it is a separate decision, so the card says which. */}
@@ -211,7 +211,7 @@ export function PlanGrid({ plans }: { plans: PlanCardData[] }) {
                     {plan.activeClients} active
                   </span>
                   <span className="tabular ml-auto font-medium text-foreground">
-                    {formatCurrency(plan.totalRevenue)} earned
+                    {formatCurrency(plan.totalRevenue, currency)} earned
                   </span>
                 </div>
               </div>
@@ -235,6 +235,7 @@ export function PlanGrid({ plans }: { plans: PlanCardData[] }) {
       </div>
 
       <PlanFormDialog
+        currency={currency}
         key={editing?.planId ?? "new"}
         open={formOpen}
         onOpenChange={(open) => {

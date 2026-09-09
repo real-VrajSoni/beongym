@@ -8,6 +8,7 @@ import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { generateGymCode } from "@/lib/data/gym-code";
 import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
 import { canonicalCity, locate } from "@/lib/geo/places";
+import { currencyForCountry } from "@/lib/geo/currency";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
 
 const listingSchema = z.object({
@@ -102,6 +103,7 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
           description: d.description || null,
           city: canonicalCity(d.city) ?? d.city,
           country: place?.country ?? null,
+          currency: currencyForCountry(place?.country),
           latitude: lat,
           longitude: lng,
           address: d.address || null,

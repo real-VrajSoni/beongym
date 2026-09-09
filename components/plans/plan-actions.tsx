@@ -12,9 +12,11 @@ import { PlanFormDialog, type PlanFormValues } from "./plan-form";
 export function PlanActions({
   plan,
   subscriberCount,
+  currency,
 }: {
   plan: PlanFormValues;
   subscriberCount: number;
+  currency: string;
 }) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
@@ -30,7 +32,7 @@ export function PlanActions({
         <Archive /> {subscriberCount > 0 ? "Archive" : "Delete"}
       </Button>
 
-      <PlanFormDialog open={editOpen} onOpenChange={setEditOpen} plan={plan} />
+      <PlanFormDialog currency={currency} open={editOpen} onOpenChange={setEditOpen} plan={plan} />
 
       <ConfirmDialog
         open={confirmOpen}

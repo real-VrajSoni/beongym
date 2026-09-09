@@ -1,11 +1,14 @@
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getRoster } from "@/lib/data/gym";
+import { getRoster, getGymCurrency } from "@/lib/data/gym";
 import { num } from "@/lib/data/serialize";
 import { formatCurrency, fromDateOnly } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { SubscriptionsTable, type SubscriptionRow } from "@/components/subscriptions/subscriptions-table";
+import {
+  SubscriptionsTable,
+  type SubscriptionRow,
+} from "@/components/subscriptions/subscriptions-table";
 import { NewSubscriptionButton } from "@/components/subscriptions/subscription-form";
 import { AlertTriangle, Repeat, Users } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
@@ -15,7 +18,7 @@ export const metadata = { title: "Memberships" };
 export default async function SubscriptionsPage() {
   const session = await requireStaff();
 
-  const [subscriptions, plans, roster] = await Promise.all([
+  const [subscriptions, plans, roster, currency] = await Promise.all([
     db.subscription.findMany({
       where: { plan: { gymId: session.gymId } },
       orderBy: [{ startDate: "desc" }],
@@ -31,6 +34,7 @@ export default async function SubscriptionsPage() {
       select: { id: true, name: true, price: true, durationDays: true, currency: true },
     }),
     getRoster(session.gymId),
+    getGymCurrency(session.gymId),
   ]);
 
   const rows: SubscriptionRow[] = subscriptions.map((s) => ({
@@ -54,9 +58,7 @@ export default async function SubscriptionsPage() {
     const left = differenceInCalendarDays(new Date(r.endDate), new Date());
     return left >= 0 && left <= 14;
   });
-  const recurringValue = live
-    .filter((r) => r.autoRenew)
-    .reduce((a, r) => a + r.price, 0);
+  const recurringValue = live.filter((r) => r.autoRenew).reduce((a, r) => a + r.price, 0);
 
   return (
     <>
@@ -88,12 +90,12 @@ export default async function SubscriptionsPage() {
         />
         <StatCard
           label="Committed to renew"
-          value={formatCurrency(recurringValue)}
+          value={formatCurrency(recurringValue, currency)}
           hint="auto-renew turned on"
         />
       </div>
 
-      <SubscriptionsTable rows={rows} />
+      <SubscriptionsTable currency={currency} rows={rows} />
     </>
   );
 }

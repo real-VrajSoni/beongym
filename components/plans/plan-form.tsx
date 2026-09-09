@@ -10,6 +10,7 @@ import { Modal, ModalBody, ModalContent, ModalFooter } from "@/components/ui/mod
 import { useAction } from "@/components/ui/use-action";
 import { BILLING_LABELS, PLAN_TYPE_LABELS } from "@/lib/labels";
 import { formatCurrency } from "@/lib/format";
+import { symbolFor } from "@/lib/geo/currency";
 
 export type PlanFormValues = {
   planId: string;
@@ -35,10 +36,13 @@ export function PlanFormDialog({
   open,
   onOpenChange,
   plan,
+  currency,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   plan?: PlanFormValues;
+  /** The gym's currency, for the label and the preview. */
+  currency: string;
 }) {
   const router = useRouter();
   const { pending, error, fieldErrors, run, reset } = useAction();
@@ -132,11 +136,15 @@ export function PlanFormDialog({
               </FormField>
 
               <FormField
-                label="Price (₹)"
+                label={`Price (${symbolFor(currency)})`}
                 htmlFor="price"
                 required
                 error={fieldErrors.price}
-                hint={Number.isFinite(priceNumber) && priceNumber > 0 ? formatCurrency(priceNumber) : undefined}
+                hint={
+                  Number.isFinite(priceNumber) && priceNumber > 0
+                    ? formatCurrency(priceNumber, currency)
+                    : undefined
+                }
               >
                 <Input
                   id="price"
@@ -231,12 +239,18 @@ export function PlanFormDialog({
   );
 }
 
-export function CreatePlanButton({ children }: { children?: React.ReactNode }) {
+export function CreatePlanButton({
+  children,
+  currency,
+}: {
+  children?: React.ReactNode;
+  currency: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button onClick={() => setOpen(true)}>{children ?? "Create programme"}</Button>
-      <PlanFormDialog open={open} onOpenChange={setOpen} />
+      <PlanFormDialog open={open} onOpenChange={setOpen} currency={currency} />
     </>
   );
 }

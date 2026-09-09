@@ -34,11 +34,14 @@ export function ProgrammeCard({
   index,
   contactHref,
   gymName,
+  currency,
 }: {
   programme: PublicProgramme;
   index: number;
   contactHref: string | null;
   gymName: string;
+  /** The gym's own currency — a visitor in London should not read rupees. */
+  currency: string;
 }) {
   const theme = themeFor(index);
   const [open, setOpen] = useState(false);
@@ -108,7 +111,7 @@ export function ProgrammeCard({
           <div className="mt-auto pt-5">
             {programme.showPrice ? (
               <p className="tabular mb-3 text-[22px] leading-none font-semibold">
-                {formatCurrency(programme.price)}
+                {formatCurrency(programme.price, currency)}
                 <span className="ml-1 text-[12px] font-normal text-[var(--mk-fg-subtle)]">
                   / {billing.toLowerCase()}
                 </span>
@@ -148,7 +151,11 @@ export function ProgrammeCard({
               <Fact icon={Clock3} value={`${programme.durationDays} days`} accent={theme.accent} />
               <Fact
                 icon={Tag}
-                value={programme.showPrice ? formatCurrency(programme.price) : "Price on request"}
+                value={
+                  programme.showPrice
+                    ? formatCurrency(programme.price, currency)
+                    : "Price on request"
+                }
                 accent={theme.accent}
               />
             </div>
@@ -169,7 +176,7 @@ export function ProgrammeCard({
             <p className="mt-5 flex items-start gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3.5 py-3 text-[12.5px] leading-relaxed text-muted-foreground">
               <Info className="mt-0.5 size-3.5 shrink-0" />
               {programme.showPrice
-                ? `${formatCurrency(programme.price)} for ${programme.durationDays} days, billed ${billing.toLowerCase()}. Joining is arranged directly with the gym.`
+                ? `${formatCurrency(programme.price, currency)} for ${programme.durationDays} days, billed ${billing.toLowerCase()}. Joining is arranged directly with the gym.`
                 : "This gym quotes its prices directly — they change with intake and season. Get in touch and they'll tell you what this costs today."}
             </p>
 

@@ -51,7 +51,13 @@ const FILTERS = [
   { key: "CANCELLED", label: "Cancelled" },
 ] as const;
 
-export function SubscriptionsTable({ rows }: { rows: SubscriptionRow[] }) {
+export function SubscriptionsTable({
+  rows,
+  currency,
+}: {
+  rows: SubscriptionRow[];
+  currency: string;
+}) {
   const router = useRouter();
   const { run } = useAction();
   const [filter, setFilter] = useState<string>("all");
@@ -123,9 +129,9 @@ export function SubscriptionsTable({ rows }: { rows: SubscriptionRow[] }) {
       align: "right",
       cell: (row) => (
         <div className="tabular text-right">
-          <p className="text-[13px] font-medium">{formatCurrency(row.price)}</p>
+          <p className="text-[13px] font-medium">{formatCurrency(row.price, currency)}</p>
           <p className="text-[11.5px] text-muted-foreground">
-            {formatCurrency(row.collected)} collected
+            {formatCurrency(row.collected, currency)} collected
           </p>
         </div>
       ),
@@ -164,12 +170,16 @@ export function SubscriptionsTable({ rows }: { rows: SubscriptionRow[] }) {
             </DropdownItem>
             <DropdownSeparator />
             {row.status !== "ACTIVE" ? (
-              <DropdownItem onSelect={() => act(() => setSubscriptionStatusAction(row.id, "ACTIVE"))}>
+              <DropdownItem
+                onSelect={() => act(() => setSubscriptionStatusAction(row.id, "ACTIVE"))}
+              >
                 <Play /> Mark active
               </DropdownItem>
             ) : null}
             {row.status !== "PAUSED" ? (
-              <DropdownItem onSelect={() => act(() => setSubscriptionStatusAction(row.id, "PAUSED"))}>
+              <DropdownItem
+                onSelect={() => act(() => setSubscriptionStatusAction(row.id, "PAUSED"))}
+              >
                 <Pause /> Pause
               </DropdownItem>
             ) : null}
@@ -191,7 +201,8 @@ export function SubscriptionsTable({ rows }: { rows: SubscriptionRow[] }) {
     <>
       <div className="scrollbar-thin -mx-1 mb-4 flex gap-1 overflow-x-auto px-1">
         {FILTERS.map((f) => {
-          const count = f.key === "all" ? rows.length : rows.filter((r) => r.status === f.key).length;
+          const count =
+            f.key === "all" ? rows.length : rows.filter((r) => r.status === f.key).length;
           return (
             <button
               key={f.key}

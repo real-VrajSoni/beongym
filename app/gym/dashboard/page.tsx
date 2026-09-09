@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
-import { getDashboard, getFollowUpQueue, getRevenueSeries } from "@/lib/data/gym";
+import { getDashboard, getFollowUpQueue, getRevenueSeries, getGymCurrency } from "@/lib/data/gym";
 import { getAttendance } from "@/lib/data/attendance";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
@@ -33,11 +33,12 @@ export default async function TrainerDashboardPage() {
   // Revenue is the owner's business, not the front desk's. Staff get floor
   // numbers in its place.
   const isOwner = session.role === "GYM_OWNER";
-  const [dashboard, revenue, queue, attendance] = await Promise.all([
+  const [dashboard, revenue, queue, attendance, currency] = await Promise.all([
     getDashboard(session.gymId, isOwner),
     isOwner ? getRevenueSeries(session.gymId, 6) : Promise.resolve([]),
     getFollowUpQueue(session.gymId),
     getAttendance(session.gymId),
+    getGymCurrency(session.gymId),
   ]);
   const footfall = attendance.daily.slice(-14);
 
@@ -60,29 +61,29 @@ export default async function TrainerDashboardPage() {
           } as React.CSSProperties
         }
       >
-      <PageHeader
-        className="mb-0"
-        title={`${greetingFor()}, ${firstName}`}
-        description="Here's what's happening at your gym today."
-        actions={
-          <>
-            <Button asChild variant="secondary">
-              <Link href="/gym/classes">
-                <CalendarRange />
-                <span className="hidden sm:inline">Timetable</span>
-                <span className="sm:hidden">Classes</span>
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link href="/gym/clients">
-                <Plus />
-                <span className="hidden sm:inline">Add member</span>
-                <span className="sm:hidden">Member</span>
-              </Link>
-            </Button>
-          </>
-        }
-      />
+        <PageHeader
+          className="mb-0"
+          title={`${greetingFor()}, ${firstName}`}
+          description="Here's what's happening at your gym today."
+          actions={
+            <>
+              <Button asChild variant="secondary">
+                <Link href="/gym/classes">
+                  <CalendarRange />
+                  <span className="hidden sm:inline">Timetable</span>
+                  <span className="sm:hidden">Classes</span>
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/gym/clients">
+                  <Plus />
+                  <span className="hidden sm:inline">Add member</span>
+                  <span className="sm:hidden">Member</span>
+                </Link>
+              </Button>
+            </>
+          }
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
@@ -96,11 +97,13 @@ export default async function TrainerDashboardPage() {
         {isOwner ? (
           <StatCard
             label="Revenue this month"
-            value={formatCurrencyCompact(kpis.monthRevenue ?? 0)}
+            value={formatCurrencyCompact(kpis.monthRevenue ?? 0, currency)}
             icon={TrendingUp}
             delta={kpis.revenueDeltaPct !== null ? { value: kpis.revenueDeltaPct } : null}
             hint={
-              kpis.revenueDeltaPct === null ? formatCurrency(kpis.monthRevenue ?? 0) : "vs last month"
+              kpis.revenueDeltaPct === null
+                ? formatCurrency(kpis.monthRevenue ?? 0, currency)
+                : "vs last month"
             }
           />
         ) : (

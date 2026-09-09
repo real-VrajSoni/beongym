@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { createSession, getSession, requireOwner, requirePaidStaff } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { canonicalCity, locate } from "@/lib/geo/places";
+import { currencyForCountry } from "@/lib/geo/currency";
 import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
 
 const gymProfileSchema = z.object({
@@ -67,6 +68,10 @@ export async function updateGymProfileAction(formData: FormData): Promise<Action
         tagline: d.tagline || null,
         city: canonicalCity(d.city) ?? d.city ?? null,
         country: place?.country ?? undefined,
+        // Moving a gym across a border changes what it charges in. Only set
+        // when the city actually resolves — an unrecognised one must not
+        // quietly reset a currency the owner is trading in.
+        currency: place ? currencyForCountry(place.country) : undefined,
         address: d.address || null,
         phone: d.phone || null,
         email: d.email || null,

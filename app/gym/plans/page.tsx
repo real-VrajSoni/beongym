@@ -4,11 +4,14 @@ import { num } from "@/lib/data/serialize";
 import { PageHeader } from "@/components/ui/page-header";
 import { PlanGrid, type PlanCardData } from "@/components/plans/plan-grid";
 import { CreatePlanButton } from "@/components/plans/plan-form";
+import { getGymCurrency } from "@/lib/data/gym";
 
 export const metadata = { title: "Membership plans" };
 
 export default async function PlansPage() {
   const session = await requireStaff();
+
+  const currency = await getGymCurrency(session.gymId);
 
   const plans = await db.plan.findMany({
     where: { gymId: session.gymId },
@@ -58,11 +61,11 @@ export default async function PlansPage() {
           className="mb-0"
           title="Membership plans"
           description="What you sell: the name, the price and how long it runs. Rename, reprice or remove any of these — they're yours."
-          actions={<CreatePlanButton />}
+          actions={<CreatePlanButton currency={currency} />}
         />
       </div>
 
-      <PlanGrid plans={cards} />
+      <PlanGrid currency={currency} plans={cards} />
     </>
   );
 }

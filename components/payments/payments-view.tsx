@@ -25,6 +25,7 @@ import { Modal, ModalBody, ModalContent, ModalFooter } from "@/components/ui/mod
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAction } from "@/components/ui/use-action";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { symbolFor } from "@/lib/geo/currency";
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, label } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +55,13 @@ const FILTERS = [
   { key: "REFUNDED", label: "Refunded" },
 ] as const;
 
-export function RecordPaymentButton({ subscriptions }: { subscriptions: SubscriptionOption[] }) {
+export function RecordPaymentButton({
+  subscriptions,
+  currency,
+}: {
+  subscriptions: SubscriptionOption[];
+  currency: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [subscriptionId, setSubscriptionId] = useState(subscriptions[0]?.id ?? "");
@@ -115,7 +122,12 @@ export function RecordPaymentButton({ subscriptions }: { subscriptions: Subscrip
               </FormField>
 
               <FormGrid>
-                <FormField label="Amount (₹)" htmlFor="pay-amount" required error={fieldErrors.amount}>
+                <FormField
+                  label={`Amount (${symbolFor(currency)})`}
+                  htmlFor="pay-amount"
+                  required
+                  error={fieldErrors.amount}
+                >
                   <Input
                     id="pay-amount"
                     name="amount"
@@ -181,7 +193,7 @@ export function RecordPaymentButton({ subscriptions }: { subscriptions: Subscrip
   );
 }
 
-export function PaymentsTable({ rows }: { rows: PaymentRow[] }) {
+export function PaymentsTable({ rows, currency }: { rows: PaymentRow[]; currency: string }) {
   const router = useRouter();
   const { run } = useAction();
   const [filter, setFilter] = useState<string>("all");
@@ -226,7 +238,9 @@ export function PaymentsTable({ rows }: { rows: PaymentRow[] }) {
       key: "amount",
       header: "Amount",
       cell: (row) => (
-        <span className="tabular text-[13.5px] font-medium">{formatCurrency(row.amount)}</span>
+        <span className="tabular text-[13.5px] font-medium">
+          {formatCurrency(row.amount, currency)}
+        </span>
       ),
     },
     {
@@ -278,7 +292,10 @@ export function PaymentsTable({ rows }: { rows: PaymentRow[] }) {
             {Object.entries(PAYMENT_STATUS_LABELS)
               .filter(([value]) => value !== row.status)
               .map(([value, text]) => (
-                <DropdownItem key={value} onSelect={() => act(() => setPaymentStatusAction(row.id, value))}>
+                <DropdownItem
+                  key={value}
+                  onSelect={() => act(() => setPaymentStatusAction(row.id, value))}
+                >
                   {text}
                 </DropdownItem>
               ))}
