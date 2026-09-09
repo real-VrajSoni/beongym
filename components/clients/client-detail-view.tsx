@@ -55,6 +55,9 @@ export type DetailData = {
     startDate: string;
     endDate: string;
     autoRenew: boolean;
+    /** What this member was sold, and in what. `plan.price` is the list price. */
+    price: number;
+    currency: string;
     plan: {
       id: string;
       name: string;
@@ -121,7 +124,7 @@ export function ClientDetailView({
   const paid = sub
     ? sub.payments.filter((p) => p.status === "SUCCESSFUL").reduce((a, p) => a + p.amount, 0)
     : 0;
-  const owed = sub ? Math.max(0, sub.plan.price - paid) : 0;
+  const owed = sub ? Math.max(0, sub.price - paid) : 0;
 
   return (
     <>
@@ -224,9 +227,9 @@ export function ClientDetailView({
         />
         <StatCard
           label="Outstanding"
-          value={sub ? formatCurrency(owed, sub.plan.currency) : "—"}
+          value={sub ? formatCurrency(owed, sub.currency) : "—"}
           icon={CreditCard}
-          hint={sub ? `${formatCurrency(paid, sub.plan.currency)} paid` : undefined}
+          hint={sub ? `${formatCurrency(paid, sub.currency)} paid` : undefined}
         />
       </div>
 
@@ -248,7 +251,7 @@ export function ClientDetailView({
                   <div className="flex items-baseline justify-between gap-3">
                     <p className="text-[15px] font-semibold">{sub.plan.name}</p>
                     <p className="tabular text-[14px] font-semibold">
-                      {formatCurrency(sub.plan.price, sub.plan.currency)}
+                      {formatCurrency(sub.price, sub.currency)}
                     </p>
                   </div>
                   <p className="mt-0.5 text-[12.5px] text-muted-foreground">

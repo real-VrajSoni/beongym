@@ -6,6 +6,7 @@ import {
   isToday,
   isTomorrow,
 } from "date-fns";
+import { DEFAULT_CURRENCY, localeForCurrency, symbolFor } from "./geo/currency";
 
 /**
  * Postgres `date` columns are calendar days with no time zone. Prisma maps
@@ -46,8 +47,8 @@ export function toNumber(value: DecimalLike): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function formatCurrency(amount: number, currency = "INR"): string {
-  return new Intl.NumberFormat("en-IN", {
+export function formatCurrency(amount: number, currency = DEFAULT_CURRENCY): string {
+  return new Intl.NumberFormat(localeForCurrency(currency), {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -71,12 +72,29 @@ export function formatUsd(amount: number): string {
   }).format(amount);
 }
 
-/** Compact form for KPI tiles: ₹1.2L, ₹45.0K, ₹850 */
-export function formatCurrencyCompact(amount: number): string {
-  if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(1)}Cr`;
-  if (amount >= 100_000) return `₹${(amount / 100_000).toFixed(1)}L`;
-  if (amount >= 1_000) return `₹${(amount / 1_000).toFixed(1)}K`;
-  return `₹${Math.round(amount)}`;
+/**
+ * Compact form for KPI tiles: ₹1.2L, £45.0K, $850.
+ *
+ * Lakhs and crores are not a formatting style, they are how Indian money is
+ * counted — so they apply to rupees and to nothing else. A gym in London
+ * reading "£1.2L" would have to stop and work out what it meant, which is the
+ * opposite of what a number on a tile is for.
+ */
+export function formatCurrencyCompact(amount: number, currency = DEFAULT_CURRENCY): string {
+  // Codes used as their own symbol ("AED", "CHF") need the space that a glyph
+  // like ₹ or £ does not — "AED850" reads as one token.
+  const glyph = symbolFor(currency);
+  const symbol = /^[A-Za-z]+$/.test(glyph) ? `${glyph} ` : glyph;
+  const round = (n: number) => n.toFixed(1).replace(/\.0$/, "");
+
+  if (currency === "INR") {
+    if (amount >= 10_000_000) return `${symbol}${round(amount / 10_000_000)}Cr`;
+    if (amount >= 100_000) return `${symbol}${round(amount / 100_000)}L`;
+  } else {
+    if (amount >= 1_000_000) return `${symbol}${round(amount / 1_000_000)}M`;
+  }
+  if (amount >= 1_000) return `${symbol}${round(amount / 1_000)}K`;
+  return `${symbol}${Math.round(amount)}`;
 }
 
 export function formatDate(date: Date | string): string {

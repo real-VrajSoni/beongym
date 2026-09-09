@@ -241,6 +241,11 @@ model Gym {
   /// Resolved from the city when the gym is listed. Used for the country
   /// filter and to tint the countries that have gyms on the globe.
   country      String?
+  /// What this gym charges its members in. Derived from the country when the
+  /// gym is created and editable in settings, because a gym near a border may
+  /// well quote the other side's money. Separate from what the gym pays *us*,
+  /// which is dollars everywhere — see lib/platform-plans.ts.
+  currency     String   @default("INR")
   /// Public profile views. Social proof on the directory, not analytics.
   viewCount    Int          @default(0) @map("view_count")
   /// False for gyms seeded from public data that no owner has taken over yet —
@@ -418,6 +423,16 @@ model Subscription {
   endDate   DateTime           @map("end_date") @db.Date
   status    SubscriptionStatus @default(ACTIVE)
   autoRenew Boolean            @default(false) @map("auto_renew")
+  /// What this membership was sold for, and in what.
+  ///
+  /// A snapshot, not a lookup. Dues used to be computed against the plan's
+  /// current price, so putting the monthly rate up rewrote what every existing
+  /// member already owed — including people who had paid in full, who would
+  /// suddenly be in arrears for a price they were never quoted. It also makes
+  /// the ordinary discount honest: a joining offer or a friend's rate is a
+  /// number on the membership, not a second plan created to hold it.
+  price     Decimal            @db.Decimal(12, 2)
+  currency  String             @default("INR")
   createdAt DateTime           @default(now()) @map("created_at")
 
   // Restrict: historical subscription rows must survive client/plan cleanup.

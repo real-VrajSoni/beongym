@@ -145,6 +145,8 @@ export async function buildQueue(gymId: string): Promise<number> {
         take: 1,
         select: {
           endDate: true,
+          price: true,
+          currency: true,
           plan: { select: { name: true, price: true, currency: true } },
           payments: { select: { amount: true, status: true } },
         },
@@ -195,13 +197,13 @@ export async function buildQueue(gymId: string): Promise<number> {
 
       if (rule.kind === "DUES_CHASE") {
         if (!sub) continue;
-        const price = num(sub.plan.price) ?? 0;
+        const price = num(sub.price) ?? 0;
         const paid = sub.payments
           .filter((p) => p.status === "SUCCESSFUL")
           .reduce((sum, p) => sum + (num(p.amount) ?? 0), 0);
         const owed = Math.max(0, price - paid);
         if (owed <= 0) continue;
-        vars.amount = formatCurrency(owed, sub.plan.currency);
+        vars.amount = formatCurrency(owed, sub.currency);
         vars.date = formatDate(fromDateOnly(sub.endDate));
         rows.push({
           gymId,

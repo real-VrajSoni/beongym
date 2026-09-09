@@ -53,6 +53,10 @@ export const createClientSchema = z.object({
   gender: optionalGender,
   dateOfBirth: z.string().optional(),
   planId: z.string().min(1, "Choose a programme"),
+  /// What the membership was sold for. Defaults to the plan's price in the
+  /// form, but the desk overrides it for a joining offer or a friend's rate —
+  /// which is why it is stored on the membership and not looked up later.
+  price: z.coerce.number().min(0, "Price cannot be negative").max(10_000_000),
   startDate: z.string().min(1, "Start date is required"),
   status: subStatusEnum.default("ACTIVE"),
   autoRenew: z.union([z.literal("on"), z.literal("")]).optional(),
@@ -105,6 +109,10 @@ export const subscriptionSchema = z.object({
   subscriptionId: z.string().optional(),
   clientId: z.string().min(1, "Choose a client"),
   planId: z.string().min(1, "Choose a programme"),
+  /// What the membership was sold for. Defaults to the plan's price in the
+  /// form, but the desk overrides it for a joining offer or a friend's rate —
+  /// which is why it is stored on the membership and not looked up later.
+  price: z.coerce.number().min(0, "Price cannot be negative").max(10_000_000),
   startDate: z.string().min(1, "Start date is required"),
   status: subStatusEnum,
   autoRenew: z.union([z.literal("on"), z.literal("")]).optional(),

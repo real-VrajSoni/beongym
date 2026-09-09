@@ -12,9 +12,18 @@ import { FormError, FormField, FormGrid } from "@/components/ui/form-field";
 import { Modal, ModalBody, ModalContent, ModalFooter } from "@/components/ui/modal";
 import { useAction } from "@/components/ui/use-action";
 import { formatCurrency } from "@/lib/format";
+import { symbolFor } from "@/lib/geo/currency";
 import { GENDER_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels";
 
-export type PlanOption = { id: string; name: string; price: number; durationDays: number };
+export type PlanOption = {
+  id: string;
+  name: string;
+  /** The list price. What the member is charged is a separate, editable field. */
+  price: number;
+  durationDays: number;
+  /** The gym's currency — a gym sells in one, so every option carries the same. */
+  currency: string;
+};
 
 export type ClientFormValues = {
   clientId: string;
@@ -50,6 +59,21 @@ export function ClientFormDialog({
   const [recordPayment, setRecordPayment] = useState(true);
   const isEdit = Boolean(client);
   const selectedPlan = plans.find((p) => p.id === planId);
+  const currency = selectedPlan?.currency ?? plans[0]?.currency ?? "INR";
+
+  // What they are actually being charged. Seeded from the plan and then left
+  // alone — a joining offer or a friend's rate is typed over the top, and the
+  // membership remembers the number rather than the plan it came from.
+  const [price, setPrice] = useState(String(plans[0]?.price ?? 0));
+  const [pricedPlan, setPricedPlan] = useState(planId);
+  if (planId !== pricedPlan) {
+    // Adjusted during render rather than in an effect, so the box never paints
+    // the previous plan's price for a frame.
+    setPricedPlan(planId);
+    setPrice(String(selectedPlan?.price ?? 0));
+  }
+  const priceNumber = Number(price);
+  const priceValid = Number.isFinite(priceNumber) && priceNumber >= 0;
 
   function handleSubmit(formData: FormData) {
     run(() => (isEdit ? updateClientAction(formData) : createClientAction(formData)), {
@@ -134,7 +158,11 @@ export function ClientFormDialog({
                   />
                 </FormField>
               ) : null}
-              <FormField label="Date of birth" htmlFor="dateOfBirth" error={fieldErrors.dateOfBirth}>
+              <FormField
+                label="Date of birth"
+                htmlFor="dateOfBirth"
+                error={fieldErrors.dateOfBirth}
+              >
                 <DateField
                   id="dateOfBirth"
                   name="dateOfBirth"
@@ -168,21 +196,40 @@ export function ClientFormDialog({
                     >
                       {plans.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} — {formatCurrency(p.price)}
+                          {p.name}
                         </option>
                       ))}
                     </Select>
+                  </FormField>
+                  <FormField
+                    label={`Price (${symbolFor(currency)})`}
+                    htmlFor="price"
+                    required
+                    error={fieldErrors.price}
+                    hint={
+                      priceValid && selectedPlan && priceNumber !== selectedPlan.price
+                        ? `List price is ${formatCurrency(selectedPlan.price, currency)}`
+                        : undefined
+                    }
+                  >
+                    <Input
+                      id="price"
+                      name="price"
+                      type="number"
+                      min={0}
+                      step={100}
+                      inputMode="numeric"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required
+                    />
                   </FormField>
                   <FormField
                     label="Start date"
                     htmlFor="startDate"
                     required
                     error={fieldErrors.startDate}
-                    hint={
-                      selectedPlan
-                        ? `Runs for ${selectedPlan.durationDays} days`
-                        : undefined
-                    }
+                    hint={selectedPlan ? `Runs for ${selectedPlan.durationDays} days` : undefined}
                   >
                     <DateField
                       id="startDate"
@@ -198,7 +245,12 @@ export function ClientFormDialog({
                     </Select>
                   </FormField>
                   <FormField label="Payment method" htmlFor="paymentMethod">
-                    <Select id="paymentMethod" name="paymentMethod" defaultValue="UPI" disabled={!recordPayment}>
+                    <Select
+                      id="paymentMethod"
+                      name="paymentMethod"
+                      defaultValue="UPI"
+                      disabled={!recordPayment}
+                    >
                       {Object.entries(PAYMENT_METHOD_LABELS).map(([value, text]) => (
                         <option key={value} value={value}>
                           {text}
@@ -217,7 +269,8 @@ export function ClientFormDialog({
                     className="size-4 rounded border-[var(--border-strong)] accent-[var(--brand)]"
                   />
                   <span>
-                    Record {selectedPlan ? formatCurrency(selectedPlan.price) : "the fee"} as paid today
+                    Record {priceValid ? formatCurrency(priceNumber, currency) : "the fee"} as paid
+                    today
                   </span>
                 </label>
                 <label className="flex items-center gap-2.5 text-[13px]">

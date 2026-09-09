@@ -97,6 +97,10 @@ export async function getClientDetail(gymId: string, clientId: string) {
           startDate: current.startDate,
           endDate: current.endDate,
           autoRenew: current.autoRenew,
+          // What this member was actually sold. The plan's price is carried too,
+          // so the UI can say "list price is X" when the two differ.
+          price: num(current.price) ?? 0,
+          currency: current.currency,
           plan: {
             id: current.plan.id,
             name: current.plan.name,
@@ -122,8 +126,8 @@ export async function getClientDetail(gymId: string, clientId: string) {
       startDate: s.startDate,
       endDate: s.endDate,
       planName: s.plan.name,
-      price: num(s.plan.price) ?? 0,
-      currency: s.plan.currency,
+      price: num(s.price) ?? 0,
+      currency: s.currency,
     })),
 
     visits,

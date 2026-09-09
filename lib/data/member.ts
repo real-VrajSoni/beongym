@@ -100,9 +100,11 @@ export async function getMemberHome(profileId: string) {
         .filter((p) => p.status === "SUCCESSFUL")
         .reduce((sum, p) => sum + (num(p.amount) ?? 0), 0)
     : 0;
-  // What the membership cost is the plan's price at the time it was sold; the
-  // schema keeps the price on the plan, so that is where it is read from.
-  const priceOfCurrent = current ? (num(current.plan.price) ?? 0) : 0;
+  // What this member was sold, taken from the membership itself. Reading the
+  // plan instead meant a price rise landed retroactively on everybody already
+  // on it — including people paid in full, who would find themselves in arrears
+  // for a number nobody ever quoted them.
+  const priceOfCurrent = current ? (num(current.price) ?? 0) : 0;
   const outstanding = current ? Math.max(0, priceOfCurrent - paidOnCurrent) : 0;
 
   return {

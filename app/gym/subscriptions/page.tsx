@@ -28,7 +28,7 @@ export default async function SubscriptionsPage() {
     db.plan.findMany({
       where: { gymId: session.gymId, isActive: true },
       orderBy: { price: "desc" },
-      select: { id: true, name: true, price: true, durationDays: true },
+      select: { id: true, name: true, price: true, durationDays: true, currency: true },
     }),
     getRoster(session.gymId),
   ]);
@@ -71,6 +71,7 @@ export default async function SubscriptionsPage() {
               name: p.name,
               price: num(p.price) ?? 0,
               durationDays: p.durationDays,
+              currency: p.currency,
             }))}
           />
         }

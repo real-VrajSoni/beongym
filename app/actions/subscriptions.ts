@@ -26,7 +26,10 @@ export async function saveSubscriptionAction(formData: FormData): Promise<Action
       return { ok: false, error: "You don't have access to that client or programme." };
     }
 
-    const plan = await db.plan.findUniqueOrThrow({ where: { id: d.planId } });
+    const plan = await db.plan.findUniqueOrThrow({
+      where: { id: d.planId },
+      include: { gym: { select: { currency: true } } },
+    });
     const startDate = toDateOnly(d.startDate);
     const data = {
       clientId: d.clientId,
@@ -35,6 +38,8 @@ export async function saveSubscriptionAction(formData: FormData): Promise<Action
       endDate: addDays(startDate, plan.durationDays),
       status: d.status,
       autoRenew: d.autoRenew === "on",
+      price: d.price,
+      currency: plan.gym.currency,
     };
 
     if (d.subscriptionId) {
@@ -122,6 +127,11 @@ export async function renewSubscriptionAction(subscriptionId: string): Promise<A
           endDate: addDays(start, sub.plan.durationDays),
           status: "ACTIVE",
           autoRenew: sub.autoRenew,
+          // A renewal carries the rate the member is actually on. Somebody who
+          // negotiated a price keeps it; putting the list price back here would
+          // be a silent increase nobody at the desk agreed to.
+          price: sub.price,
+          currency: sub.currency,
         },
       }),
     ]);

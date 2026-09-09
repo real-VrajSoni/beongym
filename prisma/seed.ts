@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { extendAccess, orderValue, tierFor, type PlanKey } from "../lib/platform-plans";
 import { locate } from "../lib/geo/places";
+import { currencyForCity } from "../lib/geo/currency";
 import type {
   AttendanceSource,
   LeadSource,
@@ -842,6 +843,7 @@ async function seedGym(spec: GymSpec, passwordHash: string) {
       latitude: spec.lat,
       longitude: spec.lng,
       country: locate(spec.city)?.country ?? null,
+      currency: currencyForCity(spec.city),
       viewCount: spec.views,
       storeSetupAt:
         spec.storeReady
@@ -1029,6 +1031,8 @@ async function seedGym(spec: GymSpec, passwordHash: string) {
           endDate: dayOnly(m.startOffset - 2),
           status: "EXPIRED",
           autoRenew: false,
+          price: priorPlan.price,
+          currency: gym.currency,
         },
       });
       await db.payment.create({
@@ -1051,6 +1055,8 @@ async function seedGym(spec: GymSpec, passwordHash: string) {
         endDate: dayOnly(m.startOffset + plan.durationDays),
         status: m.status,
         autoRenew: m.autoRenew,
+        price: plan.price,
+        currency: gym.currency,
       },
     });
 
@@ -1374,6 +1380,7 @@ async function seedUnclaimed(passwordHash: string) {
         openingHours: g.openingHours,
         city: g.city,
         country: locate(g.city)?.country ?? null,
+        currency: currencyForCity(g.city),
         latitude: g.lat,
         longitude: g.lng,
         address: g.address,
@@ -1533,6 +1540,7 @@ async function seedPinOnly(passwordHash: string) {
         tagline: spec.tagline,
         city: spec.city,
         country: locate(spec.city)?.country ?? null,
+      currency: currencyForCity(spec.city),
         latitude: spec.lat,
         longitude: spec.lng,
         address: spec.address,

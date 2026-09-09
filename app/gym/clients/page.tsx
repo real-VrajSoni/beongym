@@ -20,7 +20,7 @@ export default async function ClientsPage({
     db.plan.findMany({
       where: { gymId: session.gymId, isActive: true },
       orderBy: { price: "desc" },
-      select: { id: true, name: true, price: true, durationDays: true },
+      select: { id: true, name: true, price: true, durationDays: true, currency: true },
     }),
   ]);
 
@@ -45,6 +45,7 @@ export default async function ClientsPage({
     name: p.name,
     price: num(p.price) ?? 0,
     durationDays: p.durationDays,
+    currency: p.currency,
   }));
 
   return (

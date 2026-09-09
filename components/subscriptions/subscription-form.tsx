@@ -6,17 +6,18 @@ import { format } from "date-fns";
 import { Plus } from "lucide-react";
 import { saveSubscriptionAction } from "@/app/actions/subscriptions";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import { FormError, FormField, FormGrid } from "@/components/ui/form-field";
 import { Modal, ModalBody, ModalContent, ModalFooter } from "@/components/ui/modal";
 import { useAction } from "@/components/ui/use-action";
 import { formatCurrency } from "@/lib/format";
+import { symbolFor } from "@/lib/geo/currency";
 import { SUBSCRIPTION_STATUS_LABELS } from "@/lib/labels";
 
 export type SubscriptionFormOptions = {
   clients: { id: string; name: string }[];
-  plans: { id: string; name: string; price: number; durationDays: number }[];
+  plans: { id: string; name: string; price: number; durationDays: number; currency: string }[];
 };
 
 export function NewSubscriptionButton({ clients, plans }: SubscriptionFormOptions) {
@@ -25,6 +26,17 @@ export function NewSubscriptionButton({ clients, plans }: SubscriptionFormOption
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const { pending, error, fieldErrors, run, reset } = useAction();
   const plan = plans.find((p) => p.id === planId);
+  const currency = plan?.currency ?? plans[0]?.currency ?? "INR";
+
+  // Seeded from the plan, then the desk's to change — see client-form.tsx.
+  const [price, setPrice] = useState(String(plans[0]?.price ?? 0));
+  const [pricedPlan, setPricedPlan] = useState(planId);
+  if (planId !== pricedPlan) {
+    setPricedPlan(planId);
+    setPrice(String(plan?.price ?? 0));
+  }
+  const priceNumber = Number(price);
+  const priceValid = Number.isFinite(priceNumber) && priceNumber >= 0;
 
   return (
     <>
@@ -78,13 +90,36 @@ export function NewSubscriptionButton({ clients, plans }: SubscriptionFormOption
                 >
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} — {formatCurrency(p.price)}
+                      {p.name}
                     </option>
                   ))}
                 </Select>
               </FormField>
 
               <FormGrid>
+                <FormField
+                  label={`Price (${symbolFor(currency)})`}
+                  htmlFor="sub-price"
+                  required
+                  error={fieldErrors.price}
+                  hint={
+                    priceValid && plan && priceNumber !== plan.price
+                      ? `List price is ${formatCurrency(plan.price, currency)}`
+                      : undefined
+                  }
+                >
+                  <Input
+                    id="sub-price"
+                    name="price"
+                    type="number"
+                    min={0}
+                    step={100}
+                    inputMode="numeric"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    required
+                  />
+                </FormField>
                 <FormField
                   label="Start date"
                   htmlFor="sub-start"

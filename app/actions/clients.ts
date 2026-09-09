@@ -37,7 +37,10 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
       return { ok: false, error: "", fieldErrors: { email: "Someone already uses that email." } };
     }
 
-    const plan = await db.plan.findUniqueOrThrow({ where: { id: d.planId } });
+    const plan = await db.plan.findUniqueOrThrow({
+      where: { id: d.planId },
+      include: { gym: { select: { currency: true } } },
+    });
     const startDate = toDateOnly(d.startDate);
     const passwordHash = await hashPassword(d.password);
     const memberCode = await nextMemberCode(session.gymId);
@@ -72,6 +75,10 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
           endDate: addDays(startDate, plan.durationDays),
           status: d.status,
           autoRenew: d.autoRenew === "on",
+          // What it was sold for, in the gym's own money — not what the plan
+          // happens to cost the next time somebody opens this page.
+          price: d.price,
+          currency: plan.gym.currency,
         },
       });
 
@@ -79,7 +86,8 @@ export async function createClientAction(formData: FormData): Promise<ActionResu
         await tx.payment.create({
           data: {
             subscriptionId: subscription.id,
-            amount: plan.price,
+            amount: d.price,
+            currency: plan.gym.currency,
             paymentDate: startDate,
             paymentMethod: d.paymentMethod,
             status: "SUCCESSFUL",
