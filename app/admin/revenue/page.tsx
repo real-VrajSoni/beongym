@@ -1,6 +1,11 @@
 import { DollarSign, Layers, TrendingUp } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
-import { getGymTable, getPlatformRevenueSeries, TIER_PRICE } from "@/lib/data/admin";
+import {
+  getGymTable,
+  getPlatformRevenueSeries,
+  groupByCurrency,
+  TIER_PRICE,
+} from "@/lib/data/admin";
 import { formatCurrency, formatUsd } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
@@ -18,7 +23,11 @@ export default async function AdminRevenuePage() {
   const live = gyms.filter((g) => g.status === "ACTIVE" || g.status === "TRIAL");
   // Per-gym MRR already accounts for lifetime buyers paying nothing recurring.
   const mrr = live.reduce((a, g) => a + g.mrr, 0);
-  const gmvTotal = gyms.reduce((a, g) => a + g.collected, 0);
+  // Kept apart by currency: there is no rate in this product, so a single
+  // total across gyms in four currencies would be a number with no unit.
+  const gmvByCurrency = groupByCurrency(
+    gyms.map((g) => ({ amount: g.collected, currency: g.currency })),
+  );
   const byRevenue = [...gyms].sort((a, b) => b.collected - a.collected);
 
   const tierRows = (["PRO", "ELITE"] as const).map((tier) => {
@@ -53,9 +62,15 @@ export default async function AdminRevenuePage() {
         />
         <StatCard
           label="GMV all time"
-          value={formatCurrency(gmvTotal)}
+          value={
+            gmvByCurrency.length === 0
+              ? formatCurrency(0, "USD")
+              : gmvByCurrency.map((g) => formatCurrency(g.amount, g.currency)).join(" · ")
+          }
           icon={Layers}
-          hint="collected by gyms"
+          hint={
+            gmvByCurrency.length > 1 ? `${gmvByCurrency.length} currencies` : "collected by gyms"
+          }
         />
         <StatCard
           label="Paying gyms"
@@ -71,9 +86,22 @@ export default async function AdminRevenuePage() {
           className="lg:col-span-2"
         >
           <div className="px-3 pt-4 pb-2">
-            <RevenueChart
-              data={series.map((r) => ({ month: r.month.toISOString(), revenue: r.revenue }))}
-            />
+            {series.map((c) => (
+              <div key={c.currency} className="mb-2">
+                {series.length > 1 ? (
+                  <p className="px-1 pb-1 text-[11.5px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
+                    {c.currency}
+                  </p>
+                ) : null}
+                <RevenueChart
+                  currency={c.currency}
+                  data={c.series.map((r) => ({
+                    month: r.month.toISOString(),
+                    revenue: r.revenue,
+                  }))}
+                />
+              </div>
+            ))}
           </div>
         </Section>
 
@@ -113,7 +141,9 @@ export default async function AdminRevenuePage() {
                   </p>
                 </div>
                 <div className="tabular shrink-0 text-right">
-                  <p className="text-[13px] font-medium">{formatCurrency(g.collected)}</p>
+                  <p className="text-[13px] font-medium">
+                    {formatCurrency(g.collected, g.currency)}
+                  </p>
                   <p className="text-[11.5px] text-muted-foreground">
                     {g.mrr > 0 ? `${formatUsd(g.mrr)}/mo to BeOnGym` : "not billing"}
                   </p>

@@ -19,11 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: gym.name };
 }
 
-export default async function AdminGymDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function AdminGymDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await params;
   const gym = await getGymDetail(id);
@@ -81,7 +77,7 @@ export default async function AdminGymDetailPage({
         <StatCard label="Staff" value={gym._count.staff} icon={Users} />
         <StatCard
           label="Collected"
-          value={formatCurrency(gym.collected)}
+          value={formatCurrency(gym.collected, gym.currency)}
           icon={CreditCard}
           hint={`${gym.activeSubscriptions} live subscriptions`}
         />
@@ -127,7 +123,7 @@ export default async function AdminGymDetailPage({
                     </p>
                   </div>
                   <span className="tabular shrink-0 text-[13px] font-medium">
-                    {formatCurrency(p.price)}
+                    {formatCurrency(p.price, gym.currency)}
                   </span>
                 </li>
               ))}

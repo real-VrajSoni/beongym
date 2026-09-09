@@ -53,12 +53,17 @@ export default async function AdminOverviewPage() {
           icon={DollarSign}
           hint="tier subscriptions"
         />
+        {/* Gyms trade in their own money, so this is a list rather than a
+            total. Adding rupees to dirhams produced a number with no unit. */}
         <StatCard
           label="GMV this month"
-          value={formatCurrencyCompact(kpis.gmv)}
+          value={
+            kpis.gmv.length === 0
+              ? formatCurrencyCompact(0, "USD")
+              : kpis.gmv.map((g) => formatCurrencyCompact(g.amount, g.currency)).join(" · ")
+          }
           icon={TrendingUp}
-          delta={kpis.gmvDeltaPct !== null ? { value: kpis.gmvDeltaPct } : null}
-          hint={kpis.gmvDeltaPct === null ? "collected by gyms" : "vs last month"}
+          hint={kpis.gmv.length > 1 ? `${kpis.gmv.length} currencies` : "collected by gyms"}
         />
         <StatCard label="Members" value={kpis.memberCount} icon={Users} hint="across all gyms" />
         <StatCard
@@ -110,9 +115,24 @@ export default async function AdminOverviewPage() {
             hrefLabel="Break down"
           >
             <div className="px-3 pt-4 pb-2">
-              <RevenueChart
-                data={revenue.map((r) => ({ month: r.month.toISOString(), revenue: r.revenue }))}
-              />
+              {/* One chart per currency: a single line adding them together
+                  drew a shape the numbers could not support. */}
+              {revenue.map((c) => (
+                <div key={c.currency} className="mb-2">
+                  {revenue.length > 1 ? (
+                    <p className="px-1 pb-1 text-[11.5px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
+                      {c.currency}
+                    </p>
+                  ) : null}
+                  <RevenueChart
+                    currency={c.currency}
+                    data={c.series.map((r) => ({
+                      month: r.month.toISOString(),
+                      revenue: r.revenue,
+                    }))}
+                  />
+                </div>
+              ))}
             </div>
           </Section>
         </div>

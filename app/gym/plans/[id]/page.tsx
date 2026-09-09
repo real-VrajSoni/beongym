@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { Apple, Banknote, Dumbbell, Users } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getGymCurrency } from "@/lib/data/gym";
 import { num } from "@/lib/data/serialize";
-import { formatCurrency, formatDate, fromDateOnly } from "@/lib/format";
+import { formatCurrency, formatDate, fromDateOnly, isUnpriced } from "@/lib/format";
 import { BILLING_LABELS, DAY_LABELS, PLAN_TYPE_LABELS, label } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 import { ClientAvatar } from "@/components/ui/avatar";
@@ -30,6 +31,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function PlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireStaff();
   const { id } = await params;
+
+  // The gym's currency, not the copy denormalised onto the plan row — that copy
+  // is written on save and can be stale on anything created before it was.
+  const currency = await getGymCurrency(session.gymId);
 
   const plan = await db.plan.findFirst({
     where: { id, gymId: session.gymId },
@@ -105,7 +110,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex shrink-0 gap-2">
             <PlanActions
-              currency={plan.currency}
+              currency={currency}
               plan={{
                 planId: plan.id,
                 name: plan.name,
@@ -126,13 +131,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Price"
-          value={formatCurrency(price, plan.currency)}
+          value={isUnpriced(price) ? "Not set" : formatCurrency(price, currency)}
+          hint={isUnpriced(price) ? "Edit this programme to set what it costs" : undefined}
           icon={Banknote}
           accent
         />
         <StatCard label="Active clients" value={activeSubs.length} icon={Users} />
         <StatCard label="Total subscriptions" value={plan.subscriptions.length} />
-        <StatCard label="Revenue collected" value={formatCurrency(revenue, plan.currency)} />
+        <StatCard label="Revenue collected" value={formatCurrency(revenue, currency)} />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">

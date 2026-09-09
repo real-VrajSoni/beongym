@@ -102,10 +102,12 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
         include: { trainerProfile: true },
       });
 
+      // Unpriced on purpose — the owner sets what each costs, in their money.
       await tx.plan.createMany({
         data: STARTER_PLANS.map((p) => ({
           ...p,
           gymId: gym.id,
+          currency: gym.currency,
           trainerId: owner.trainerProfile!.id,
         })),
       });

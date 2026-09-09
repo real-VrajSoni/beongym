@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Modal, ModalBody, ModalContent, ModalFooter } from "@/components/ui/modal";
 import { useAction } from "@/components/ui/use-action";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GymMark } from "./gym-mark";
 import { GymStatusBadge, TierBadge } from "./gym-badges";
@@ -30,6 +30,8 @@ export type GymRow = {
   code: string;
   name: string;
   city: string | null;
+  /** What this gym charges its members. `collected` is denominated in it. */
+  currency: string;
   status: string;
   tier: string;
   accentColor: string | null;
@@ -81,7 +83,12 @@ export function GymsTable({ rows }: { rows: GymRow[] }) {
       primary: true,
       cell: (row) => (
         <div className="flex items-center gap-3">
-          <GymMark name={row.name} logoText={row.logoText} accentColor={row.accentColor} size="sm" />
+          <GymMark
+            name={row.name}
+            logoText={row.logoText}
+            accentColor={row.accentColor}
+            size="sm"
+          />
           <div className="min-w-0">
             <Link
               href={`/admin/gyms/${row.id}`}
@@ -115,10 +122,8 @@ export function GymsTable({ rows }: { rows: GymRow[] }) {
       align: "right",
       cell: (row) => (
         <div className="tabular text-right">
-          <p className="text-[13px] font-medium">{formatCurrency(row.collected)}</p>
-          <p className="text-[11.5px] text-muted-foreground">
-            {row.activeSubscriptions} live subs
-          </p>
+          <p className="text-[13px] font-medium">{formatCurrency(row.collected, row.currency)}</p>
+          <p className="text-[11.5px] text-muted-foreground">{row.activeSubscriptions} live subs</p>
         </div>
       ),
     },
@@ -128,7 +133,7 @@ export function GymsTable({ rows }: { rows: GymRow[] }) {
       align: "right",
       cell: (row) => (
         <span className="tabular text-[13px] font-medium">
-          {row.mrr > 0 ? formatCurrency(row.mrr) : "—"}
+          {row.mrr > 0 ? formatUsd(row.mrr) : "—"}
         </span>
       ),
     },
@@ -265,8 +270,8 @@ export function GymsTable({ rows }: { rows: GymRow[] }) {
               {deleting ? (
                 <>
                   <span className="font-medium">{deleting.name}</span> has {deleting.members}{" "}
-                  members and {formatCurrency(deleting.collected)} of recorded payments. Suspending
-                  it keeps the data and locks everyone out instead.
+                  members and {formatCurrency(deleting.collected, deleting.currency)} of recorded
+                  payments. Suspending it keeps the data and locks everyone out instead.
                 </>
               ) : null}
             </div>

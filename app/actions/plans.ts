@@ -16,11 +16,20 @@ export async function savePlanAction(formData: FormData): Promise<ActionResult> 
     if (!parsed.success) return invalid(parsed.error);
     const d = parsed.data;
 
+    // The gym's currency, written onto the row. Left to the schema default,
+    // every plan any gym created came out priced in rupees — which the grid hid
+    // (it reads the gym) and the detail page showed (it read the plan).
+    const gym = await db.gym.findUniqueOrThrow({
+      where: { id: session.gymId },
+      select: { currency: true },
+    });
+
     const data = {
       name: d.name,
       description: d.description ?? null,
       planType: d.planType,
       price: d.price,
+      currency: gym.currency,
       durationDays: d.durationDays,
       billingInterval: d.billingInterval,
       isActive: d.isActive === "on",

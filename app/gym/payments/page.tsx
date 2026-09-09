@@ -108,6 +108,7 @@ export default async function PaymentsPage() {
         <Section title="Revenue" description="Successful payments over the last six months">
           <div className="px-3 pt-4 pb-2">
             <RevenueChart
+              currency={currency}
               data={revenue.map((r) => ({ month: r.month.toISOString(), revenue: r.revenue }))}
             />
           </div>

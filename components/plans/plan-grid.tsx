@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAction } from "@/components/ui/use-action";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, isUnpriced } from "@/lib/format";
 import { BILLING_LABELS, PLAN_TYPE_LABELS, label } from "@/lib/labels";
 import { PlanFormDialog, type PlanFormValues } from "./plan-form";
 import { PlanMotif, themeFor } from "./plan-art";
@@ -178,12 +178,27 @@ export function PlanGrid({ plans, currency }: { plans: PlanCardData[]; currency:
               ) : null}
 
               <div className="mt-auto pt-6">
-                <p
-                  className="tabular text-[25px] leading-none font-semibold"
-                  style={{ color: theme.accent }}
-                >
-                  {formatCurrency(plan.price, currency)}
-                </p>
+                {/* A starting programme arrives without a price, because what a
+                    month costs is the one thing that genuinely differs between
+                    a gym in Jaipur and one in Sydney. Showing that as a
+                    confident "$0" would read as free rather than as unfinished,
+                    so it reads as the blank it is. */}
+                {isUnpriced(plan.price) ? (
+                  <button
+                    type="button"
+                    onClick={() => openEdit(plan)}
+                    className="tabular text-[25px] leading-none font-semibold text-muted-foreground hover:text-foreground"
+                  >
+                    Set a price
+                  </button>
+                ) : (
+                  <p
+                    className="tabular text-[25px] leading-none font-semibold"
+                    style={{ color: theme.accent }}
+                  >
+                    {formatCurrency(plan.price, currency)}
+                  </p>
+                )}
                 {/* Your own price is always yours to see; whether the public
                     sees it is a separate decision, so the card says which. */}
                 <button
@@ -191,7 +206,11 @@ export function PlanGrid({ plans, currency }: { plans: PlanCardData[]; currency:
                   onClick={() => openEdit(plan)}
                   className="mt-2 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground hover:text-foreground"
                 >
-                  {plan.showPrice ? (
+                  {isUnpriced(plan.price) ? (
+                    <>
+                      <EyeOff className="size-3" /> Not on your store until it has a price
+                    </>
+                  ) : plan.showPrice ? (
                     <>
                       <Eye className="size-3" /> Shown on your store
                     </>

@@ -45,6 +45,7 @@ export default async function AdminActivityPage() {
       select: {
         id: true,
         amount: true,
+        currency: true,
         status: true,
         createdAt: true,
         subscription: {
@@ -104,12 +105,14 @@ export default async function AdminActivityPage() {
       id: `pay-${p.id}`,
       kind: "payment" as const,
       at: p.createdAt,
-      gym: p.subscription.plan.gym ? { id: p.subscription.plan.gym.id, name: p.subscription.plan.gym.name } : null,
+      gym: p.subscription.plan.gym
+        ? { id: p.subscription.plan.gym.id, name: p.subscription.plan.gym.name }
+        : null,
       text: (
         <>
           <span className="font-medium">{p.subscription.client.user.name}</span>{" "}
           {p.status === "SUCCESSFUL" ? "paid" : p.status === "FAILED" ? "failed to pay" : "owes"}{" "}
-          {formatCurrency(Number(p.amount))} for {p.subscription.plan.name}
+          {formatCurrency(Number(p.amount), p.currency)} for {p.subscription.plan.name}
         </>
       ),
     })),

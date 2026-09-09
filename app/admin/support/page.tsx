@@ -28,9 +28,7 @@ export default async function AdminSupportPage() {
 
   const empty = gyms.filter((g) => g.members === 0 && g.status !== "CANCELLED");
   const suspended = gyms.filter((g) => g.status === "SUSPENDED" || g.status === "CANCELLED");
-  const noRevenue = gyms.filter(
-    (g) => g.collected === 0 && g.members > 0 && g.status === "ACTIVE",
-  );
+  const noRevenue = gyms.filter((g) => g.collected === 0 && g.members > 0 && g.status === "ACTIVE");
 
   const lists = [
     {
@@ -58,7 +56,8 @@ export default async function AdminSupportPage() {
       description: "Active with members but nothing collected",
       icon: TrendingDown,
       rows: noRevenue,
-      meta: (g: (typeof noRevenue)[number]) => `${g.members} members · ${formatCurrency(0)} collected`,
+      meta: (g: (typeof noRevenue)[number]) =>
+        `${g.members} members · ${formatCurrency(0, g.currency)} collected`,
     },
     {
       key: "suspended",
@@ -66,16 +65,14 @@ export default async function AdminSupportPage() {
       description: "Locked out of the platform",
       icon: Ban,
       rows: suspended,
-      meta: (g: (typeof suspended)[number]) => `${g.members} members · ${formatCurrency(g.collected)} collected`,
+      meta: (g: (typeof suspended)[number]) =>
+        `${g.members} members · ${formatCurrency(g.collected, g.currency)} collected`,
     },
   ];
 
   return (
     <>
-      <PageHeader
-        title="Support"
-        description="Accounts that need attention today."
-      />
+      <PageHeader title="Support" description="Accounts that need attention today." />
 
       <div className="grid gap-5 lg:grid-cols-2">
         {lists.map((list) => (
@@ -109,7 +106,9 @@ export default async function AdminSupportPage() {
                       >
                         {g.name}
                       </Link>
-                      <p className="truncate text-[12px] text-muted-foreground">{list.meta(g as never)}</p>
+                      <p className="truncate text-[12px] text-muted-foreground">
+                        {list.meta(g as never)}
+                      </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <GymStatusBadge status={g.status} />

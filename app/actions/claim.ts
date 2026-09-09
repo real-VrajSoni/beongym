@@ -36,7 +36,7 @@ export async function claimGymAction(formData: FormData): Promise<ActionResult> 
 
     const gym = await db.gym.findFirst({
       where: { code: d.code.toUpperCase(), claimed: false },
-      select: { id: true, name: true, code: true, city: true, tier: true },
+      select: { id: true, name: true, code: true, city: true, tier: true, currency: true },
     });
     if (!gym) {
       return { ok: false as const, error: "That gym has already been claimed." };
@@ -88,11 +88,13 @@ export async function claimGymAction(formData: FormData): Promise<ActionResult> 
       await tx.platformOrder.update({ where: { id: order.id }, data: { gymId: gym.id } });
 
       // A store needs something to show, so the starting programmes land with
-      // it. Their prices stay unpublished until the owner says otherwise.
+      // it — unpriced, in the gym's own currency, and off the public store
+      // until the owner has said what each one costs.
       await tx.plan.createMany({
         data: STARTER_PLANS.map((plan) => ({
           ...plan,
           gymId: gym.id,
+          currency: gym.currency,
           trainerId: owner.trainerProfile!.id,
         })),
       });

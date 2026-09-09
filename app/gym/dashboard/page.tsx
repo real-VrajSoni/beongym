@@ -168,6 +168,7 @@ export default async function TrainerDashboardPage() {
             >
               <div className="px-3 pt-4 pb-2">
                 <RevenueChart
+                  currency={currency}
                   data={revenue.map((r) => ({ month: r.month.toISOString(), revenue: r.revenue }))}
                 />
               </div>

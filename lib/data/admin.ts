@@ -14,6 +14,30 @@ import { ENTRY_PRICE, monthlyValue } from "@/lib/platform-plans";
 /** What each tier bills per month. Elite bills nothing after the first payment. */
 export const TIER_PRICE: Record<string, number> = { PRO: ENTRY_PRICE, ELITE: 0 };
 
+/**
+ * Money across gyms, kept apart by currency.
+ *
+ * There is no honest single number for "revenue across the platform" once gyms
+ * trade in rupees, dollars, pounds and dirhams: adding them produces a figure
+ * with no unit, which looked authoritative and meant nothing. Until there is a
+ * conversion rate and a decision about which day's rate to use, the totals stay
+ * in the currencies they were earned in.
+ *
+ * Sorted by size so the dominant currency reads first.
+ */
+export type MoneyByCurrency = { currency: string; amount: number }[];
+
+export function groupByCurrency(rows: { amount: unknown; currency: string }[]): MoneyByCurrency {
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    totals.set(r.currency, (totals.get(r.currency) ?? 0) + (num(r.amount as never) ?? 0));
+  }
+  return [...totals.entries()]
+    .map(([currency, amount]) => ({ currency, amount }))
+    .filter((r) => r.amount !== 0)
+    .sort((a, b) => b.amount - a.amount);
+}
+
 export async function getPlatformOverview() {
   const now = new Date();
   const monthStart = startOfMonth(now);
@@ -33,7 +57,7 @@ export async function getPlatformOverview() {
           logoText: true,
           createdAt: true,
           trialEndsAt: true,
-              accessExpiresAt: true,
+          accessExpiresAt: true,
           _count: { select: { members: true, staff: true, plans: true } },
         },
       }),
@@ -41,14 +65,14 @@ export async function getPlatformOverview() {
       db.user.count({ where: { role: { in: ["GYM_OWNER", "GYM_STAFF"] } } }),
       db.payment.findMany({
         where: { status: "SUCCESSFUL", paymentDate: { gte: monthStart } },
-        select: { amount: true },
+        select: { amount: true, currency: true },
       }),
       db.payment.findMany({
         where: {
           status: "SUCCESSFUL",
           paymentDate: { gte: startOfMonth(subMonths(now, 1)), lt: monthStart },
         },
-        select: { amount: true },
+        select: { amount: true, currency: true },
       }),
       db.gym.findMany({
         orderBy: { createdAt: "desc" },
@@ -68,10 +92,6 @@ export async function getPlatformOverview() {
         },
       }),
     ]);
-
-  const sum = (rows: { amount: unknown }[]) =>
-    rows.reduce((a, r) => a + (num(r.amount as never) ?? 0), 0);
-
   /**
    * Member fees flow to the gyms; the platform's own revenue is subscriptions.
    *
@@ -94,16 +114,14 @@ export async function getPlatformOverview() {
       totalGyms: gyms.length,
       activeGyms: gyms.filter((g) => g.status === "ACTIVE").length,
       trialGyms: gyms.filter((g) => g.status === "TRIAL").length,
-      suspendedGyms: gyms.filter((g) => g.status === "SUSPENDED" || g.status === "CANCELLED").length,
+      suspendedGyms: gyms.filter((g) => g.status === "SUSPENDED" || g.status === "CANCELLED")
+        .length,
       memberCount,
       staffCount,
       platformMrr,
-      gmv: sum(monthPayments),
-      gmvDeltaPct: (() => {
-        const last = sum(lastMonthPayments);
-        const current = sum(monthPayments);
-        return last > 0 ? Number((((current - last) / last) * 100).toFixed(1)) : null;
-      })(),
+      // Per currency, because there is no exchange rate in this product yet.
+      gmv: groupByCurrency(monthPayments),
+      gmvLastMonth: groupByCurrency(lastMonthPayments),
     },
     recentGyms,
     recentUsers,
@@ -115,23 +133,31 @@ export async function getPlatformRevenueSeries(months = 6) {
   const from = startOfMonth(subMonths(new Date(), months - 1));
   const payments = await db.payment.findMany({
     where: { status: "SUCCESSFUL", paymentDate: { gte: from } },
-    select: { amount: true, paymentDate: true },
+    select: { amount: true, paymentDate: true, currency: true },
   });
 
-  const buckets = new Map<string, number>();
-  for (let i = 0; i < months; i++) {
+  // One series per currency. A single line adding rupees to dollars was a shape
+  // that told a story the numbers underneath it could not support.
+  const currencies = [...new Set(payments.map((p) => p.currency))];
+  const monthKeys = Array.from({ length: months }, (_, i) => {
     const d = startOfMonth(subMonths(new Date(), months - 1 - i));
-    buckets.set(`${d.getFullYear()}-${d.getMonth()}`, 0);
-  }
-  for (const p of payments) {
-    const key = `${p.paymentDate.getFullYear()}-${p.paymentDate.getMonth()}`;
-    if (buckets.has(key)) buckets.set(key, buckets.get(key)! + (num(p.amount) ?? 0));
-  }
-
-  return Array.from(buckets.entries()).map(([key, revenue]) => {
-    const [y, m] = key.split("-").map(Number);
-    return { month: new Date(y!, m!, 1), revenue };
+    return { key: `${d.getFullYear()}-${d.getMonth()}`, month: d };
   });
+
+  const byCurrency = currencies.map((currency) => {
+    const buckets = new Map(monthKeys.map((m) => [m.key, 0]));
+    for (const p of payments.filter((x) => x.currency === currency)) {
+      const key = `${p.paymentDate.getFullYear()}-${p.paymentDate.getMonth()}`;
+      if (buckets.has(key)) buckets.set(key, buckets.get(key)! + (num(p.amount) ?? 0));
+    }
+    return {
+      currency,
+      total: [...buckets.values()].reduce((a, b) => a + b, 0),
+      series: monthKeys.map((m) => ({ month: m.month, revenue: buckets.get(m.key) ?? 0 })),
+    };
+  });
+
+  return byCurrency.sort((a, b) => b.total - a.total);
 }
 
 /** Per-gym rollup used by the admin gyms table. */
@@ -141,6 +167,7 @@ export async function getGymTable() {
     select: {
       id: true,
       code: true,
+      currency: true,
       name: true,
       city: true,
       status: true,
@@ -168,6 +195,7 @@ export async function getGymTable() {
   return gyms.map((g) => {
     const subs = g.plans.flatMap((p) => p.subscriptions);
     return {
+      currency: g.currency,
       id: g.id,
       code: g.code,
       name: g.name,
@@ -241,6 +269,7 @@ export async function getGymDetail(gymId: string) {
   return {
     ...gym,
     plans: gym.plans.map((p) => ({ ...p, price: num(p.price) ?? 0 })),
+    currency: gym.currency,
     collected: payments.reduce((a, p) => a + (num(p.amount) ?? 0), 0),
     activeSubscriptions: activeSubs,
     mrr: monthlyValue(gym.tier, gym.accessExpiresAt),

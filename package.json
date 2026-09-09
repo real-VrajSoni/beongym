@@ -14,7 +14,8 @@
     "check:isolation": "tsx scripts/isolation-check.ts",
     "check:routes": "tsx scripts/route-check.ts",
     "check:globe": "tsx scripts/globe-check.ts",
-    "check:tenant": "tsx --conditions=react-server scripts/tenant-check.ts"
+    "check:tenant": "tsx --conditions=react-server scripts/tenant-check.ts",
+    "backfill:plans": "tsx --conditions=react-server scripts/backfill-plans.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

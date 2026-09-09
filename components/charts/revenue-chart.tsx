@@ -1,11 +1,27 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { format } from "date-fns";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/format";
 import { AXIS_PROPS, ChartTooltip } from "./chart-tooltip";
 
-export function RevenueChart({ data }: { data: { month: string; revenue: number }[] }) {
+export function RevenueChart({
+  data,
+  currency,
+}: {
+  data: { month: string; revenue: number }[];
+  /** Whose money this is. The axis and the tooltip both need it — a rupee tick
+   *  above an Australian gym's revenue is the same bug twice. */
+  currency: string;
+}) {
   const points = data.map((d) => ({ ...d, date: new Date(d.month) }));
 
   return (
@@ -28,13 +44,13 @@ export function RevenueChart({ data }: { data: { month: string; revenue: number 
           <YAxis
             {...AXIS_PROPS}
             width={54}
-            tickFormatter={(v: number) => formatCurrencyCompact(v)}
+            tickFormatter={(v: number) => formatCurrencyCompact(v, currency)}
           />
           <Tooltip
             cursor={{ stroke: "var(--border-strong)", strokeWidth: 1 }}
             content={
               <ChartTooltip
-                formatValue={(v) => formatCurrency(v)}
+                formatValue={(v) => formatCurrency(v, currency)}
                 labelFormatter={(l) => format(new Date(l as string), "MMMM yyyy")}
               />
             }

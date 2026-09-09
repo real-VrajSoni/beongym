@@ -21,7 +21,7 @@ export async function recordPaymentAction(formData: FormData): Promise<ActionRes
 
     const sub = await db.subscription.findFirst({
       where: { id: d.subscriptionId, plan: { gymId: session.gymId } },
-      select: { id: true, clientId: true },
+      select: { id: true, clientId: true, currency: true },
     });
     if (!sub) return { ok: false, error: "Subscription not found." };
 
@@ -49,6 +49,10 @@ export async function recordPaymentAction(formData: FormData): Promise<ActionRes
       data: {
         subscriptionId: sub.id,
         amount: d.amount,
+        // The membership's currency, not the column default. Left unset, every
+        // payment any gym recorded claimed to be rupees — which the member's
+        // own payments page then showed them.
+        currency: sub.currency,
         paymentDate: new Date(d.paymentDate),
         paymentMethod: d.paymentMethod,
         status: d.status,

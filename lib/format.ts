@@ -47,6 +47,19 @@ export function toNumber(value: DecimalLike): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * True when a programme has not been priced yet.
+ *
+ * A starting programme arrives at zero and the owner fills the number in, so
+ * zero means "unset", not "free". Rendering it as a confident ₹0 read as a
+ * giveaway rather than as an unfinished form. Lives here rather than beside
+ * `STARTER_PLANS` because that module is `server-only` and the plan grid, which
+ * needs this, runs on the client.
+ */
+export function isUnpriced(price: number): boolean {
+  return price <= 0;
+}
+
 export function formatCurrency(amount: number, currency = DEFAULT_CURRENCY): string {
   return new Intl.NumberFormat(localeForCurrency(currency), {
     style: "currency",

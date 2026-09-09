@@ -177,6 +177,7 @@ export async function attachOwnerAction(formData: FormData): Promise<ActionResul
         name: true,
         code: true,
         tier: true,
+        currency: true,
         accessExpiresAt: true,
         _count: { select: { users: true } },
       },
@@ -218,11 +219,13 @@ export async function attachOwnerAction(formData: FormData): Promise<ActionResul
       }
 
       // Programmes need a trainer to hang off, so the starting set is created
-      // the moment there is an owner to own them. Prices stay unpublished.
+      // the moment there is an owner to own them — unpriced, in the gym's own
+      // currency, and off the public store until the owner prices each one.
       await tx.plan.createMany({
         data: STARTER_PLANS.map((p) => ({
           ...p,
           gymId: gym.id,
+          currency: gym.currency,
           trainerId: user.trainerProfile!.id,
         })),
       });
