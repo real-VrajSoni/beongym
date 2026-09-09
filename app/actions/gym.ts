@@ -5,7 +5,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession, getSession, requireOwner, requirePaidStaff } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
-import { canonicalCity, locate } from "@/lib/geo/places";
+import { canonicalCity } from "@/lib/geo/places";
+import { locateAnywhere } from "@/lib/geo/remote";
 import { currencyForCountry } from "@/lib/geo/currency";
 import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
 
@@ -53,7 +54,7 @@ export async function updateGymProfileAction(formData: FormData): Promise<Action
 
     // A gym with no pin is invisible on the map, so the city is geocoded on
     // every save; an explicit pin from the picker always wins.
-    const place = locate(d.city);
+    const place = await locateAnywhere(d.city);
     const pin =
       typeof d.latitude === "number" && typeof d.longitude === "number"
         ? { latitude: d.latitude, longitude: d.longitude }

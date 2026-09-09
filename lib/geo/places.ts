@@ -189,8 +189,72 @@ for (const place of PLACES) {
 }
 
 /**
+ * The same table, keyed by country.
+ *
+ * People type a country into a box labelled "city" — "norway", "uae", "india"
+ * — and the honest response to that is a pin in the right country, not a null.
+ * A null was expensive here: it lost the country, which lost the currency, and
+ * it lost the coordinates, which kept the gym off the globe entirely. One
+ * unrecognised word cost a paying gym both.
+ *
+ * First entry per country wins, and the table lists each country's largest or
+ * best-known city first, so a country-level answer lands somewhere defensible.
+ * The owner refines it with the pin picker in settings.
+ */
+const COUNTRY_INDEX = new Map<string, Place>();
+for (const place of PLACES) {
+  if (!COUNTRY_INDEX.has(fold(place.country))) COUNTRY_INDEX.set(fold(place.country), place);
+}
+
+/** What people type when they mean a country but not its name. */
+const COUNTRY_ALIASES: Record<string, string> = {
+  uae: "United Arab Emirates",
+  emirates: "United Arab Emirates",
+  usa: "United States",
+  us: "United States",
+  america: "United States",
+  uk: "United Kingdom",
+  britain: "United Kingdom",
+  england: "United Kingdom",
+  scotland: "United Kingdom",
+  wales: "United Kingdom",
+  bharat: "India",
+  ksa: "Saudi Arabia",
+  holland: "Netherlands",
+  deutschland: "Germany",
+  turkey: "Türkiye",
+  korea: "South Korea",
+};
+
+/**
+ * A country, from what somebody typed. Returns that country's principal city.
+ *
+ * Separate from `locate` so a caller can tell the two apart: this is a
+ * country-level guess, not a street the gym is on.
+ */
+export function locateCountry(input: string | null | undefined): Place | null {
+  if (!input) return null;
+  const key = fold(input);
+  if (!key) return null;
+
+  const aliased = COUNTRY_ALIASES[key];
+  if (aliased) return COUNTRY_INDEX.get(fold(aliased)) ?? null;
+
+  const exact = COUNTRY_INDEX.get(key);
+  if (exact) return exact;
+
+  // "gym in norway" and "Norway " both mean Norway.
+  for (const [name, place] of COUNTRY_INDEX) {
+    if (key.includes(name)) return place;
+  }
+  return null;
+}
+
+/**
  * Resolve a typed city to a pin. Falls back to a containment match so
- * "Andheri West, Mumbai" still finds Mumbai.
+ * "Andheri West, Mumbai" still finds Mumbai, and then to the country, so
+ * somebody who types "norway" into the city box lands in Norway rather than
+ * nowhere at all.
  */
 export function locate(city: string | null | undefined): Place | null {
   if (!city) return null;
@@ -203,7 +267,7 @@ export function locate(city: string | null | undefined): Place | null {
   for (const [name, place] of INDEX) {
     if (key.includes(name)) return place;
   }
-  return null;
+  return locateCountry(city);
 }
 
 /**

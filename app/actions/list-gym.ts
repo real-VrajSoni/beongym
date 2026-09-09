@@ -7,7 +7,8 @@ import { createSession, getSession, hashPassword } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { generateGymCode } from "@/lib/data/gym-code";
 import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
-import { canonicalCity, locate } from "@/lib/geo/places";
+import { canonicalCity } from "@/lib/geo/places";
+import { locateAnywhere } from "@/lib/geo/remote";
 import { currencyForCountry } from "@/lib/geo/currency";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
 
@@ -74,7 +75,9 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
     if (!parsed.success) return invalid(parsed.error);
     const d = parsed.data;
 
-    const place = locate(d.city);
+    // The table first, then OpenStreetMap — so a gym in a town of four
+    // thousand people still gets a pin rather than a form error.
+    const place = await locateAnywhere(d.city);
     const lat = typeof d.latitude === "number" ? d.latitude : (place?.lat ?? null);
     const lng = typeof d.longitude === "number" ? d.longitude : (place?.lng ?? null);
     if (lat === null || lng === null) {

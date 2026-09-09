@@ -7,7 +7,9 @@ import { createSession, requireProspect } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { generateGymCode } from "@/lib/data/gym-code";
 import { extendAccess, orderValue, planByKey, PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
-import { canonicalCity, locate } from "@/lib/geo/places";
+import { canonicalCity } from "@/lib/geo/places";
+import { locateAnywhere } from "@/lib/geo/remote";
+import { currencyForCountry } from "@/lib/geo/currency";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
 
 const checkoutSchema = z.object({
@@ -51,6 +53,14 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
     const accessExpiresAt = extendAccess(null, plan.key);
     const code = await generateGymCode(d.gymName);
 
+    // Resolved before the transaction opens: this can reach OpenStreetMap, and
+    // holding a database transaction open across a network call to somebody
+    // else's server is how you get lock timeouts under load.
+    //
+    // Geocoding here is what puts a brand-new gym on the globe straight away
+    // rather than after somebody thinks to edit their settings.
+    const place = await locateAnywhere(d.city);
+
     await db.$transaction(async (tx) => {
       const order = await tx.platformOrder.create({
         data: {
@@ -67,10 +77,6 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
         },
       });
 
-      // Geocoding the city here is what puts a brand-new gym on the globe
-      // straight away rather than after somebody edits their settings.
-      const place = locate(d.city);
-
       const gym = await tx.gym.create({
         data: {
           code,
@@ -79,6 +85,9 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
           country: place?.country ?? null,
           latitude: place?.lat ?? null,
           longitude: place?.lng ?? null,
+          // Without this the column fell to its default and a gym in Oslo
+          // priced its memberships in rupees.
+          currency: currencyForCountry(place?.country),
           logoText:
             d.gymName
               .replace(/[^A-Za-z]/g, "")
