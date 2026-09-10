@@ -1,16 +1,13 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { createSession, requireProspect } from "@/lib/auth";
+import { requireProspect } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
-import { generateGymCode } from "@/lib/data/gym-code";
-import { extendAccess, orderValue, planByKey, PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
+import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
-import { STARTER_PLANS } from "@/lib/data/starter-plans";
+import { reissueFor, startPurchase } from "@/lib/payments/checkout";
 
 const checkoutSchema = z.object({
   // Only plans on sale today. A retired key posted by hand is rejected here,
@@ -53,111 +50,42 @@ const checkoutSchema = z.object({
  * charged can differ by the tax line.
  */
 export async function purchasePlanAction(formData: FormData): Promise<ActionResult> {
-  const result = await guard(async () => {
+  return guard(async () => {
     const session = await requireProspect();
     const parsed = checkoutSchema.safeParse(Object.fromEntries(formData.entries()));
     if (!parsed.success) return invalid(parsed.error);
     const d = parsed.data;
 
-    // Every gym pays. The plan decides how many days that buys; lifetime
-    // buys all of them.
-    const plan = planByKey(d.plan);
-    const amount = orderValue(plan.key);
-    const accessExpiresAt = extendAccess(null, plan.key);
-    const code = await generateGymCode(d.gymName);
-
-    // Resolved before the transaction opens: this can reach OpenStreetMap, and
-    // holding a database transaction open across a network call to somebody
-    // else's server is how you get lock timeouts under load.
-    //
-    // Geocoding here is what puts a brand-new gym on the globe straight away
-    // rather than after somebody thinks to edit their settings.
+    // Resolved before anything else: this can reach OpenStreetMap, and the
+    // result is carried on the order so the gym lands on the globe the moment
+    // it is created rather than after somebody edits their settings.
     const place = await locateAnywhere(d.city);
 
-    await db.$transaction(async (tx) => {
-      const order = await tx.platformOrder.create({
-        data: {
-          userId: session.userId,
-          kind: "CHECKOUT",
-          tier: plan.tier,
-          billingCycle: plan.key,
-          amount,
-          currency: "USD",
-          status: "PAID",
-          provider: "manual",
-          gymName: d.gymName,
-          city: d.city ?? null,
-          paidAt: new Date(),
-        },
-      });
-
-      const gym = await tx.gym.create({
-        data: {
-          code,
-          name: d.gymName,
-          city: canonicalCity(d.city) ?? d.city ?? null,
-          country: place?.country ?? null,
-          latitude: place?.lat ?? null,
-          longitude: place?.lng ?? null,
-          // What the owner chose. The city's suggestion is the fallback for a
-          // form posted without one, and the platform default behind that.
-          currency: d.currency ?? suggestCurrency(d.city, place?.country),
-          logoText:
-            d.gymName
-              .replace(/[^A-Za-z]/g, "")
-              .slice(0, 2)
-              .toUpperCase() || "GY",
-          accentColor: "#7c6cff",
-          status: "ACTIVE",
-          tier: plan.tier,
-          accessExpiresAt,
-          trialEndsAt: null,
-        },
-      });
-
-      const owner = await tx.user.update({
-        where: { id: session.userId },
-        data: {
-          gymId: gym.id,
-          role: "GYM_OWNER",
-          trainerProfile: { create: { gymId: gym.id, title: "Owner" } },
-        },
-        include: { trainerProfile: true },
-      });
-
-      // Unpriced on purpose — the owner sets what each costs, in their money.
-      await tx.plan.createMany({
-        data: STARTER_PLANS.map((p) => ({
-          ...p,
-          gymId: gym.id,
-          currency: gym.currency,
-          trainerId: owner.trainerProfile!.id,
-        })),
-      });
-
-      await tx.platformOrder.update({
-        where: { id: order.id },
-        data: { gymId: gym.id },
-      });
-
-      // The session carries the role and tenant, so it has to be reissued.
-      await createSession({
-        userId: owner.id,
-        email: owner.email,
-        name: owner.name,
-        role: "GYM_OWNER",
-        profileId: owner.trainerProfile!.id,
-        gymId: gym.id,
-        gymName: gym.name,
-        gymCode: gym.code,
-        gymTier: gym.tier,
-        gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
-      });
+    const result = await startPurchase({
+      userId: session.userId,
+      email: session.email,
+      name: session.name,
+      planKey: d.plan === "ANNUAL" ? "ANNUAL" : "MONTHLY",
+      kind: "CHECKOUT",
+      gymName: d.gymName,
+      city: d.city ?? null,
+      returnPath: "/start/checkout/return",
+      meta: {
+        city: canonicalCity(d.city) ?? d.city ?? null,
+        country: place?.country ?? null,
+        latitude: place?.lat ?? null,
+        longitude: place?.lng ?? null,
+        currency: d.currency ?? suggestCurrency(d.city, place?.country),
+      },
     });
 
-    return { ok: true as const, message: `${d.gymName} is live.` };
+    if (!result.ok) return { ok: false, error: result.error };
+    if (result.mode === "gateway") {
+      return { ok: true, message: "Redirecting to payment…", id: result.checkoutUrl };
+    }
+    // Simulated: the gym really was created, so the session must be reissued —
+    // this account was a PROSPECT a moment ago and is now an owner.
+    await reissueFor(session.userId);
+    return { ok: true, message: result.message, id: "/gym/dashboard" };
   });
-
-  if (result.ok) redirect("/gym/dashboard?welcome=1");
-  return result;
 }

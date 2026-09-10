@@ -15,8 +15,26 @@ import "server-only";
  */
 type Level = "info" | "warn" | "error";
 
+/**
+ * Names that are safe despite matching the pattern below.
+ *
+ * `planKey` contains "key" and is not a secret; redacting it cost the logs the
+ * one field that says what was bought. An allowlist is the honest fix — better
+ * a short list of known-safe names than a looser pattern that lets a real
+ * secret through.
+ */
+const SAFE = new Set([
+  "planKey",
+  "webhookId",
+  "eventId",
+  "orderId",
+  "gymId",
+  "sessionId",
+  "productId",
+]);
+
 /** Keys whose values must never reach a log line, at any depth. */
-const SECRET = /^(.*(key|secret|token|password|signature|card|cvv|authorization).*)$/i;
+const SECRET = /(key|secret|token|password|signature|card|cvv|authorization)/i;
 /** Keys that identify a person rather than a record. */
 const PERSONAL = /^(email|name|phone|address|billing|customer_name|street|zipcode)$/i;
 
@@ -26,7 +44,8 @@ export function redact(value: unknown, depth = 0): unknown {
 
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (SECRET.test(k)) out[k] = "[redacted]";
+    if (SAFE.has(k)) out[k] = v;
+    else if (SECRET.test(k)) out[k] = "[redacted]";
     else if (PERSONAL.test(k)) out[k] = "[personal]";
     else if (typeof v === "object" && v !== null) out[k] = redact(v, depth + 1);
     else out[k] = v;

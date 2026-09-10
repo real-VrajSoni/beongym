@@ -3,6 +3,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import type { BillingStatus, OrderKind, OrderStatus } from "@/lib/generated/prisma/enums";
 import { extendAccess, planByKey, tierFor } from "@/lib/platform-plans";
 import { paymentLog } from "./log";
+import { fulfilOrder } from "./fulfil";
 
 /**
  * What a verified Dodo event does to a gym.
@@ -240,19 +241,36 @@ export async function applyEvent(tx: Tx, event: DodoEvent): Promise<HandledResul
   const gymId = await resolveGymId(tx, payload);
   const planKey = planKeyFor(payload);
 
+  // A pending order comes first, and deliberately before the gym check: for a
+  // new signup there IS no gym yet. The order holds what one needs to exist,
+  // and fulfilling it is what creates it. Only money-in events may do this.
+  const pendingId = payload.metadata?.orderId;
+  if (pendingId && (event.type === "subscription.active" || event.type === "payment.succeeded")) {
+    const done = await fulfilOrder(tx, pendingId, {
+      subscriptionId: payload.subscription_id,
+      customerId: payload.customer?.customer_id,
+      paymentId: payload.payment_id,
+      nextBillingDate: payload.next_billing_date,
+    });
+    if (done.ok) return { handled: true, gymId: done.gymId, note: done.note };
+  }
+
   if (!gymId) {
-    // Not an error: a payment for a gym that does not exist yet is what the
-    // listing flow looks like before its order is written. Acknowledged, and
-    // recorded on the event row, rather than retried forever.
+    // Acknowledged rather than retried forever: an event we cannot place is not
+    // going to become placeable on the eighth delivery. The reason is written
+    // to the event row for someone to read.
     return { handled: false, gymId: null, note: "no matching gym" };
   }
 
   switch (event.type) {
     /* ── money in ─────────────────────────────────────────────── */
-    case "subscription.active":
+    case "subscription.active": {
+      // Reached only when there was no pending order to fulfil — a subscription
+      // created outside our checkout, or a replay whose metadata is gone.
       await grant(tx, gymId, payload, planKey);
       await recordOrder(tx, gymId, payload, { status: "PAID", kind: "CHECKOUT", planKey });
       return { handled: true, gymId, note: "access granted" };
+    }
 
     case "subscription.renewed":
       await grant(tx, gymId, payload, planKey);

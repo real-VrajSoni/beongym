@@ -8,7 +8,7 @@ import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency } from "@/lib/geo/currency";
-import { startCheckout } from "@/lib/payments/checkout";
+import { startPurchase } from "@/lib/payments/checkout";
 import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 
 const gymProfileSchema = z.object({
@@ -145,14 +145,21 @@ export async function purchaseAccessAction(planKey: string): Promise<ActionResul
     // extended access on the spot, which was honest while there was no gateway
     // and is a hole the moment there is one — anyone who could click the button
     // could grant themselves a year.
-    const result = await startCheckout({
+    const gym = await db.gym.findUniqueOrThrow({
+      where: { id: session.gymId },
+      select: { name: true, city: true },
+    });
+
+    const result = await startPurchase({
       gymId: session.gymId,
       userId: session.userId,
       planKey: parsed.data === "ANNUAL" ? "ANNUAL" : "MONTHLY",
       email: session.email,
       name: session.name,
       kind: "RENEWAL",
-      returnPath: "/gym/billing?checkout=returned",
+      gymName: gym.name,
+      city: gym.city,
+      returnPath: "/gym/billing",
     });
 
     if (!result.ok) return { ok: false, error: result.error };

@@ -1,16 +1,15 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession, getSession, hashPassword } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
-import { generateGymCode } from "@/lib/data/gym-code";
-import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
+import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
+import { startPurchase } from "@/lib/payments/checkout";
 
 const listingSchema = z.object({
   /** Which plan they bought. Only the ones on sale today are accepted. */
@@ -95,70 +94,57 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
       };
     }
 
-    const code = await generateGymCode(d.name);
     const amenities = (d.amenities ?? "")
       .split(",")
       .map((a) => a.trim())
       .filter(Boolean)
       .slice(0, 12);
 
-    const plan = planByKey(d.plan);
-
-    const gym = await db.$transaction(async (tx) => {
-      const created = await tx.gym.create({
-        data: {
-          code,
-          name: d.name,
-          tagline: d.tagline || null,
-          description: d.description || null,
-          city: canonicalCity(d.city) ?? d.city,
-          country: place?.country ?? null,
-          currency: d.currency ?? suggestCurrency(d.city, place?.country),
-          latitude: lat,
-          longitude: lng,
-          address: d.address || null,
-          phone: d.phone,
-          email: d.email,
-          amenities,
-          openingHours: d.openingHours || null,
-          imageUrl: d.imageUrl || null,
-          accentColor: d.accentColor || "#7c6cff",
-          logoText:
-            d.name
-              .replace(/[^A-Za-z]/g, "")
-              .slice(0, 2)
-              .toUpperCase() || "GY",
-          // Listed by its own owner, so there is nothing here to claim.
-          claimed: true,
-          listed: true,
-          status: "ACTIVE",
-          tier: plan.tier,
-          accessExpiresAt: extendAccess(null, plan.key),
-        },
-      });
-
-      await tx.platformOrder.create({
-        data: {
-          gymId: created.id,
-          email: d.email,
-          tier: plan.tier,
-          billingCycle: plan.key,
-          amount: orderValue(plan.key),
-          currency: "USD",
-          status: "PAID",
-          provider: "manual",
-          kind: "LISTING",
-          gymName: created.name,
-          city: created.city,
-          paidAt: new Date(),
-        },
-      });
-
-      return created;
+    // Nothing is created until the money is verified. The listing's details ride
+    // on the order so `fulfilOrder` can build the gym from them; writing the gym
+    // here and marking the order PAID, as this used to, put a free listing on
+    // the public map for anyone who found the form.
+    const result = await startPurchase({
+      userId: null,
+      email: d.email,
+      name: d.name,
+      planKey: d.plan === "ANNUAL" ? "ANNUAL" : "MONTHLY",
+      kind: "LISTING",
+      gymName: d.name,
+      city: canonicalCity(d.city) ?? d.city,
+      returnPath: "/start/checkout/return",
+      meta: {
+        city: canonicalCity(d.city) ?? d.city,
+        country: place?.country ?? null,
+        currency: d.currency ?? suggestCurrency(d.city, place?.country),
+        latitude: lat,
+        longitude: lng,
+        tagline: d.tagline || null,
+        description: d.description || null,
+        address: d.address || null,
+        phone: d.phone,
+        email: d.email,
+        amenities,
+        openingHours: d.openingHours || null,
+        imageUrl: d.imageUrl || null,
+        accentColor: d.accentColor || "#7c6cff",
+      },
     });
 
-    revalidatePath("/gyms");
-    return { ok: true as const, message: `${gym.name} is on the map.`, code: gym.code };
+    if (!result.ok) return { ok: false as const, error: result.error };
+    if (result.mode === "gateway") {
+      return { ok: true as const, message: "Redirecting to payment…", code: result.checkoutUrl };
+    }
+
+    const created = await db.platformOrder.findUnique({
+      where: { id: result.orderId },
+      select: { gym: { select: { code: true, name: true } } },
+    });
+    return {
+      ok: true as const,
+      message: `${created?.gym?.name ?? d.name} is on the map.`,
+      code: created?.gym?.code,
+    };
   });
 }
 
