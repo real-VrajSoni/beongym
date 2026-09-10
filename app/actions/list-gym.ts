@@ -113,6 +113,7 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
       gymName: d.name,
       city: canonicalCity(d.city) ?? d.city,
       returnPath: "/start/checkout/return",
+      billingCurrency: d.currency ?? suggestCurrency(d.city, place?.country),
       meta: {
         city: canonicalCity(d.city) ?? d.city,
         country: place?.country ?? null,

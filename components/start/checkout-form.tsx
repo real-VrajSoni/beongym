@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, CreditCard, Lock, ShieldCheck } from "lucide-react";
 import { purchasePlanAction } from "@/app/actions/checkout";
+import { previewPlanPriceAction, type PricePreview } from "@/app/actions/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyField } from "@/components/ui/currency-field";
 import { FormError, FormField } from "@/components/ui/form-field";
 import { useAction } from "@/components/ui/use-action";
-import { formatUsd } from "@/lib/format";
+import { formatCurrency, formatUsd } from "@/lib/format";
 import { suggestCurrency } from "@/lib/geo/currency";
 import { INCLUDED, ELITE_EXTRAS, discountFor, type PlatformPlan } from "@/lib/platform-plans";
 
@@ -35,6 +36,32 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
   const elite = plan.key === "LIFETIME";
   const amount = plan.price;
 
+  /**
+   * What the plan costs in the currency they picked.
+   *
+   * Asked of Dodo rather than converted here: a rate we looked up would be a
+   * different number from the one on the card statement, which is worse than
+   * showing none. An unsupported currency or a slow reply simply leaves the
+   * dollar price standing on its own.
+   *
+   * The answer is stored with the currency it was for, so switching currency
+   * cannot briefly show the previous one's figure — the render below only
+   * trusts a quote whose currency still matches the selection.
+   */
+  const [quote, setQuote] = useState<{ for: string; price: PricePreview } | null>(null);
+  useEffect(() => {
+    if (currency === "USD") return;
+    let live = true;
+    previewPlanPriceAction(plan.key, currency).then((price) => {
+      if (live) setQuote({ for: currency, price });
+    });
+    return () => {
+      live = false;
+    };
+  }, [currency, plan.key]);
+
+  const localPrice = quote && quote.for === currency && currency !== "USD" ? quote.price : null;
+
   const previewCode =
     (gymName
       .toUpperCase()
@@ -44,7 +71,23 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
       ?.slice(0, 6) || "GYM") + "-4821";
 
   return (
-    <form action={(fd) => run(() => purchasePlanAction(fd))} className="grid gap-6 lg:grid-cols-5">
+    <form
+      action={(fd) =>
+        run(() => purchasePlanAction(fd), {
+          onSuccess: (result) => {
+            // The action grants nothing now; it returns where to pay. Without
+            // this the button ran, succeeded, and visibly did nothing.
+            if (result.id?.startsWith("http")) {
+              window.location.href = result.id;
+              return;
+            }
+            // Simulated mode (no gateway configured) provisions directly.
+            if (result.id) window.location.href = result.id;
+          },
+        })
+      }
+      className="grid gap-6 lg:grid-cols-5"
+    >
       <input type="hidden" name="plan" value={plan.key} />
 
       <div className="space-y-5 lg:col-span-3">
@@ -177,11 +220,18 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
             <CreditCard /> Pay {formatUsd(amount)}
           </Button>
 
-          <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-[var(--warning)]/25 bg-[var(--warning-soft)] px-3 py-2 text-[11.5px] leading-relaxed text-[var(--warning)]">
+          {localPrice ? (
+            <p className="mt-2 text-center text-[12px] text-muted-foreground">
+              About {formatCurrency(localPrice.amount, localPrice.currency)} on your card — Dodo
+              converts at the rate on the day.
+            </p>
+          ) : null}
+
+          <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground">
             <Lock className="mt-0.5 size-3 shrink-0" />
-            No card is charged. Dodo Payments is not connected yet, so this records the order and
-            opens your gym immediately. Tax is added at the real checkout, worked out from your
-            country.
+            You&rsquo;ll pay on Dodo Payments&rsquo; secure checkout — we never see your card. Tax
+            is worked out there from your country and added on top. Your gym is created once the
+            payment is confirmed.
           </p>
 
           <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-[var(--subtle-foreground)]">

@@ -5,6 +5,7 @@ import { createSession, type Role } from "@/lib/auth";
 import { orderValue, planByKey, tierFor } from "@/lib/platform-plans";
 import type { OrderKind } from "@/lib/generated/prisma/enums";
 import { dodo, gatewayConfigured, productIdFor } from "./dodo";
+import { isKnownCurrency } from "@/lib/geo/currency";
 import { paymentLog } from "./log";
 import { fulfilOrder } from "./fulfil";
 
@@ -33,6 +34,14 @@ export async function startPurchase(input: {
   city: string | null;
   /** Set when the gym already exists — a claim or a renewal. */
   gymId?: string | null;
+  /**
+   * What the buyer would rather be charged in.
+   *
+   * Dodo converts at live rates. The plan still settles in dollars; this only
+   * changes what the card statement says, which is the difference between a
+   * gym in Mumbai recognising the amount and guessing at it.
+   */
+  billingCurrency?: string | null;
   returnPath: string;
   meta?: Record<string, unknown>;
 }): Promise<StartResult> {
@@ -93,6 +102,15 @@ export async function startPurchase(input: {
     const session = await dodo().checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
       customer: { email: input.email, name: input.name ?? "" },
+      // Charge in the buyer's own money where Dodo can. The plan is priced and
+      // settles in dollars; this changes what the card statement says, which is
+      // the difference between a gym in Mumbai recognising the amount and
+      // having to work it out.
+      ...(input.billingCurrency &&
+      input.billingCurrency !== "USD" &&
+      isKnownCurrency(input.billingCurrency)
+        ? { billing_currency: input.billingCurrency as never }
+        : {}),
       metadata: {
         orderId: order.id,
         planKey: input.planKey,
