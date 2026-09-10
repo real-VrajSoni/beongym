@@ -145,11 +145,13 @@ export function FeatureGrid() {
           {FEATURES.map(({ icon: Icon, title, body, tint, live: isLive, highlight }) => (
             <div
               key={title}
+              // The tint each feature already carried was only used on its icon.
+              // Now it colours the card too, so the grid reads as a set of
+              // related things rather than one grey sheet ruled into boxes.
+              style={{ ["--tint" as string]: tint }}
               className={cn(
-                "group relative overflow-hidden rounded-2xl border bg-[var(--mk-panel)] p-5 transition-all duration-300 hover:-translate-y-1",
-                highlight
-                  ? "border-[var(--brand)]/45 bg-[var(--brand)]/[0.06]"
-                  : "border-[var(--mk-border-strong)] hover:border-[var(--mk-fg-subtle)]/40",
+                "mk-card group overflow-hidden rounded-2xl p-5",
+                highlight && "border-[var(--brand)]/45",
               )}
             >
               <div

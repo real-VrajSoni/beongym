@@ -24,6 +24,7 @@ import { DashboardPreview } from "@/components/marketing/dashboard-preview";
 import { Faq, type FaqItem } from "@/components/marketing/faq";
 import { FeatureGrid } from "@/components/marketing/feature-grid";
 import { Pillars } from "@/components/marketing/pillars";
+import { HeroAmbience } from "@/components/marketing/hero-ambience";
 import { GlobeBand, HOMEPAGE_GYMS } from "@/components/marketing/globe-band";
 import { Niches } from "@/components/marketing/niches";
 
@@ -196,6 +197,9 @@ export default async function LandingPage() {
           className="pointer-events-none absolute inset-0"
           style={{ background: "var(--mk-hero)" }}
         />
+        {/* The columns either side of a centred headline were dead space. They
+            now hold the paper the headline is about. */}
+        <HeroAmbience />
         <div className="relative mx-auto max-w-4xl px-6 pt-24 pb-20 text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--mk-border-strong)] bg-[var(--mk-panel-strong)] px-3.5 py-1.5 text-[11.5px] font-semibold tracking-[0.16em] text-[var(--mk-fg-muted)] uppercase backdrop-blur">
             For gyms and studios

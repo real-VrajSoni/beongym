@@ -77,9 +77,16 @@ export function Pillars() {
           </p>
         </div>
 
-        <ul className="mt-10 divide-y divide-[var(--mk-border)] overflow-hidden rounded-3xl border border-[var(--mk-border-strong)] bg-[var(--mk-panel)]">
+        {/* Cards rather than one ruled box. Five rows sharing a single border
+            read as a table; five cards that each answer to their own colour
+            read as five separate things off the counter, which is the point. */}
+        <ul className="mt-10 grid gap-3">
           {PILLARS.map(({ icon: Icon, instead, name, body, tint }) => (
-            <li key={name} className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start sm:gap-6">
+            <li
+              key={name}
+              style={{ ["--tint" as string]: tint }}
+              className="mk-card flex flex-col gap-4 rounded-2xl p-6 sm:flex-row sm:items-start sm:gap-6"
+            >
               <span
                 className="flex size-11 shrink-0 items-center justify-center rounded-2xl border"
                 style={{ borderColor: `${tint}40`, background: `${tint}1a`, color: tint }}

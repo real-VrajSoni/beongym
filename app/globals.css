@@ -39,8 +39,11 @@
   --chart-4: #d6467f;
   --chart-5: #7a8ba6;
 
-  --shadow-card: 0 1px 2px rgba(20, 20, 27, 0.04), 0 1px 3px rgba(20, 20, 27, 0.03);
-  --shadow-raised: 0 4px 12px -2px rgba(20, 20, 27, 0.08), 0 2px 6px -2px rgba(20, 20, 27, 0.05);
+  --shadow-card:
+    0 1px 2px rgba(20, 20, 27, 0.04), 0 1px 3px rgba(20, 20, 27, 0.03);
+  --shadow-raised:
+    0 4px 12px -2px rgba(20, 20, 27, 0.08),
+    0 2px 6px -2px rgba(20, 20, 27, 0.05);
   --shadow-overlay: 0 16px 48px -12px rgba(20, 20, 27, 0.22);
 }
 
@@ -86,8 +89,11 @@
   --chart-4: #f0709f;
   --chart-5: #8f9fba;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
-  --shadow-raised: 0 8px 24px -6px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045) inset;
+  --shadow-card:
+    0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+  --shadow-raised:
+    0 8px 24px -6px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.045) inset;
   --shadow-overlay: 0 16px 48px -12px rgba(0, 0, 0, 0.78);
 
   --mk-bg: #0b0b11;
@@ -98,10 +104,22 @@
   --mk-border-strong: rgba(255, 255, 255, 0.15);
   --mk-panel: rgba(255, 255, 255, 0.03);
   --mk-panel-strong: rgba(255, 255, 255, 0.07);
+  /* How much of a card's own colour it carries. Light panels swallow a
+     tint that reads clearly on a dark one, so they take roughly double. */
+  --mk-tint-rest: 7%;
+  --mk-tint-hover: 15%;
   --mk-preview: #111119;
   --mk-hero:
-    radial-gradient(64rem 40rem at 50% -22%, rgba(143, 128, 255, 0.32), transparent 62%),
-    radial-gradient(40rem 28rem at 90% 6%, rgba(47, 198, 191, 0.14), transparent 62%);
+    radial-gradient(
+      64rem 40rem at 50% -22%,
+      rgba(143, 128, 255, 0.32),
+      transparent 62%
+    ),
+    radial-gradient(
+      40rem 28rem at 90% 6%,
+      rgba(47, 198, 191, 0.14),
+      transparent 62%
+    );
 
   --globe-ocean: #0a1020;
   --globe-land: #32324e;
@@ -155,8 +173,11 @@
     --chart-4: #f0709f;
     --chart-5: #8f9fba;
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
-    --shadow-raised: 0 8px 24px -6px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045) inset;
+    --shadow-card:
+      0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+    --shadow-raised:
+      0 8px 24px -6px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(255, 255, 255, 0.045) inset;
     --shadow-overlay: 0 16px 48px -12px rgba(0, 0, 0, 0.78);
     --mk-bg: #0b0b11;
     --mk-fg: #ffffff;
@@ -166,10 +187,22 @@
     --mk-border-strong: rgba(255, 255, 255, 0.15);
     --mk-panel: rgba(255, 255, 255, 0.03);
     --mk-panel-strong: rgba(255, 255, 255, 0.07);
+    /* How much of a card's own colour it carries. Light panels swallow a
+       tint that reads clearly on a dark one, so they take roughly double. */
+    --mk-tint-rest: 7%;
+    --mk-tint-hover: 15%;
     --mk-preview: #111119;
     --mk-hero:
-      radial-gradient(64rem 40rem at 50% -22%, rgba(143, 128, 255, 0.32), transparent 62%),
-      radial-gradient(40rem 28rem at 90% 6%, rgba(47, 198, 191, 0.14), transparent 62%);
+      radial-gradient(
+        64rem 40rem at 50% -22%,
+        rgba(143, 128, 255, 0.32),
+        transparent 62%
+      ),
+      radial-gradient(
+        40rem 28rem at 90% 6%,
+        rgba(47, 198, 191, 0.14),
+        transparent 62%
+      );
 
     --globe-ocean: #0a1020;
     --globe-land: #32324e;
@@ -192,15 +225,27 @@
   --mk-border-strong: #dcdce6;
   --mk-panel: #fafafc;
   --mk-panel-strong: #f1f1f6;
+  /* How much of a card's own colour it carries. Light panels swallow a
+     tint that reads clearly on a dark one, so they take roughly double. */
+  --mk-tint-rest: 13%;
+  --mk-tint-hover: 24%;
   --mk-preview: #ffffff;
   --mk-hero:
-    radial-gradient(64rem 40rem at 50% -22%, rgba(86, 71, 229, 0.14), transparent 62%),
-    radial-gradient(40rem 28rem at 90% 6%, rgba(10, 165, 160, 0.08), transparent 62%);
+    radial-gradient(
+      64rem 40rem at 50% -22%,
+      rgba(86, 71, 229, 0.14),
+      transparent 62%
+    ),
+    radial-gradient(
+      40rem 28rem at 90% 6%,
+      rgba(10, 165, 160, 0.08),
+      transparent 62%
+    );
 
   --globe-ocean: #c6d2ee;
   --globe-land: #fbfbfe;
   --globe-land-edge: rgba(20, 20, 27, 0.22);
-  --globe-graticule: rgba(20, 20, 27, 0.10);
+  --globe-graticule: rgba(20, 20, 27, 0.1);
 }
 
 @theme inline {
@@ -263,7 +308,10 @@
     font-family: var(--font-display);
   }
 
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
     letter-spacing: -0.012em;
   }
@@ -309,8 +357,12 @@
   }
 
   @keyframes shimmer {
-    0% { background-position: 100% 50%; }
-    100% { background-position: 0 50%; }
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
   }
 
   /* Testimonial marquee. The track holds two identical copies, so shifting
@@ -325,8 +377,12 @@
   }
 
   @keyframes marquee {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
   }
 
   /* Pricing cards: lift and warm on hover so the eye lands on one. */
@@ -349,8 +405,15 @@
   }
 
   @keyframes offer-pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.035); opacity: 0.92; }
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.035);
+      opacity: 0.92;
+    }
   }
 
   /* The lifetime card's border, which slowly travels so the eye returns to it.
@@ -397,13 +460,21 @@
   }
 
   @keyframes in-up {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
@@ -438,14 +509,24 @@
     background-image: var(--app-wash), var(--app-grid);
     background-attachment: fixed, fixed;
     background-repeat: no-repeat, repeat;
-    background-size: cover, 56px 56px;
+    background-size:
+      cover,
+      56px 56px;
   }
 }
 
 :root {
   --app-wash:
-    radial-gradient(58rem 38rem at 12% -12%, rgba(86, 71, 229, 0.09), transparent 62%),
-    radial-gradient(46rem 32rem at 96% 2%, rgba(10, 165, 160, 0.06), transparent 60%);
+    radial-gradient(
+      58rem 38rem at 12% -12%,
+      rgba(86, 71, 229, 0.09),
+      transparent 62%
+    ),
+    radial-gradient(
+      46rem 32rem at 96% 2%,
+      rgba(10, 165, 160, 0.06),
+      transparent 60%
+    );
   --app-grid:
     linear-gradient(to right, rgba(20, 20, 27, 0.028) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(20, 20, 27, 0.028) 1px, transparent 1px);
@@ -454,8 +535,16 @@
 .dark,
 :root:not(.light) {
   --app-wash:
-    radial-gradient(60rem 40rem at 12% -14%, rgba(143, 128, 255, 0.085), transparent 60%),
-    radial-gradient(46rem 32rem at 98% 0%, rgba(47, 198, 191, 0.05), transparent 58%);
+    radial-gradient(
+      60rem 40rem at 12% -14%,
+      rgba(143, 128, 255, 0.085),
+      transparent 60%
+    ),
+    radial-gradient(
+      46rem 32rem at 98% 0%,
+      rgba(47, 198, 191, 0.05),
+      transparent 58%
+    );
   --app-grid:
     linear-gradient(to right, rgba(255, 255, 255, 0.016) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
@@ -464,8 +553,16 @@
 @media (prefers-color-scheme: light) {
   :root:not(.dark) {
     --app-wash:
-      radial-gradient(58rem 38rem at 12% -12%, rgba(86, 71, 229, 0.09), transparent 62%),
-      radial-gradient(46rem 32rem at 96% 2%, rgba(10, 165, 160, 0.06), transparent 60%);
+      radial-gradient(
+        58rem 38rem at 12% -12%,
+        rgba(86, 71, 229, 0.09),
+        transparent 62%
+      ),
+      radial-gradient(
+        46rem 32rem at 96% 2%,
+        rgba(10, 165, 160, 0.06),
+        transparent 60%
+      );
     --app-grid:
       linear-gradient(to right, rgba(20, 20, 27, 0.028) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(20, 20, 27, 0.028) 1px, transparent 1px);
@@ -504,5 +601,122 @@
     background:
       radial-gradient(40rem 20rem at 8% 0%, var(--hero-a), transparent 65%),
       radial-gradient(32rem 18rem at 92% 100%, var(--hero-b), transparent 62%);
+  }
+}
+
+@layer utilities {
+  /**
+   * Marketing cards.
+   *
+   * Every card on the homepage was the same near-white panel — #fafafc in
+   * light, 3% white in dark — which reads as a wireframe rather than a product.
+   * Each card now carries its own `--tint`, laid over the panel as a soft
+   * gradient, so a grid of them has a rhythm instead of being one flat sheet
+   * with lines drawn on it.
+   *
+   * The tint is deliberately weak. Colour here is meant to give the eye
+   * somewhere to rest as it moves down a list, not to shout: at 6% the card
+   * still reads as a card, and the text on it still reads at full contrast.
+   */
+  .mk-card {
+    --tint: var(--brand);
+    --tint-rest: var(--mk-tint-rest, 13%);
+    --tint-hover: var(--mk-tint-hover, 24%);
+    position: relative;
+    isolation: isolate;
+    border: 1px solid
+      color-mix(in srgb, var(--tint) 22%, var(--mk-border-strong));
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--tint) var(--tint-rest), var(--mk-panel)),
+      var(--mk-panel) 68%
+    );
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 220ms ease,
+      background 220ms ease;
+  }
+
+  /**
+   * The hover.
+   *
+   * Three things at once, because one alone reads as a hover state and three
+   * read as the card responding: it lifts, its border takes the tint, and it
+   * throws a shadow in its own colour rather than the generic grey every other
+   * site uses. The lift is small — 3px — because a card that jumps is a card
+   * that makes the whole grid feel unstable as the cursor crosses it.
+   */
+  .mk-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--tint) 62%, transparent);
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--tint) var(--tint-hover), var(--mk-panel)),
+      var(--mk-panel) 72%
+    );
+    box-shadow:
+      0 18px 40px -20px color-mix(in srgb, var(--tint) 60%, transparent),
+      0 2px 8px -4px color-mix(in srgb, var(--tint) 40%, transparent);
+  }
+
+  /* A thin bar of the card's own colour, drawn on hover along the top edge. */
+  .mk-card::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent, var(--tint), transparent);
+    opacity: 0;
+    transition: opacity 220ms ease;
+  }
+
+  .mk-card:hover::after {
+    opacity: 0.9;
+  }
+
+  /* Somebody who has asked for less motion gets the colour and none of the
+     movement. The information is in the tint; the lift is decoration. */
+  @media (prefers-reduced-motion: reduce) {
+    .mk-card,
+    .mk-card:hover {
+      transform: none;
+      transition:
+        border-color 220ms ease,
+        background 220ms ease;
+    }
+  }
+}
+
+@layer utilities {
+  /* The hero's side columns. Small movements over long periods: anything
+     faster competes with the headline for attention, which is the opposite of
+     what decoration is for. */
+  @keyframes mk-drift {
+    0%,
+    100% {
+      transform: rotate(var(--tilt)) translateY(0);
+    }
+    50% {
+      transform: rotate(var(--tilt)) translateY(-14px);
+    }
+  }
+
+  @keyframes mk-float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(0, -26px, 0) scale(1.06);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [style*="mk-drift"],
+    [style*="mk-float"] {
+      animation: none !important;
+    }
   }
 }

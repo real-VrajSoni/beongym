@@ -71,9 +71,27 @@ const TESTIMONIALS: Testimonial[] = [
   },
 ];
 
+/**
+ * A colour per quote, chosen from the initials.
+ *
+ * Deterministic on purpose: a random tint would differ between the server and
+ * the client render and flicker on hydration, and would reshuffle every time
+ * the marquee looped.
+ */
+const TINTS = ["#7c6cff", "#3ecf7e", "#2dd4bf", "#e8a33d", "#f0709f", "#5aa2f5"];
+
+function tintFor(seed: string): string {
+  let n = 0;
+  for (const ch of seed) n = (n + ch.charCodeAt(0)) % 997;
+  return TINTS[n % TINTS.length]!;
+}
+
 function Card({ t }: { t: Testimonial }) {
   return (
-    <figure className="flex w-[21rem] shrink-0 flex-col rounded-2xl border border-[var(--mk-border-strong)] bg-[var(--mk-panel)] p-6 sm:w-[24rem]">
+    <figure
+      style={{ ["--tint" as string]: tintFor(t.initials + t.gym) }}
+      className="mk-card flex w-[21rem] shrink-0 flex-col rounded-2xl p-6 sm:w-[24rem]"
+    >
       <Quote className="size-5 text-[var(--brand)]" />
       <blockquote className="mt-4 flex-1 text-[14.5px] leading-relaxed text-[var(--mk-fg-muted)]">
         {t.quote}

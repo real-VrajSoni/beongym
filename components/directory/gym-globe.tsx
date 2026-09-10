@@ -16,12 +16,15 @@ import { cn } from "@/lib/utils";
 /**
  * Idle drift, in degrees per millisecond.
  *
- * Fast enough to read as alive, slow enough that a pin stays a target rather
- * than a moving one — roughly a full turn every two minutes. The drift stops
- * the moment anybody takes hold of the globe and never resumes, so this only
- * governs how it behaves while nobody is touching it.
+ * Roughly a full turn a minute — brisk enough that the globe reads as the live
+ * thing it is rather than a still image with pins on it. It was a third of this
+ * and looked static on a page somebody scrolls past in seconds.
+ *
+ * The drift stops the moment anybody takes hold of the globe and never resumes,
+ * so this only governs how it behaves while nobody is touching it: nothing here
+ * can make a pin harder to click.
  */
-const SPIN_PER_MS = 0.003;
+const SPIN_PER_MS = 0.006;
 /**
  * Pin diameter at the centre of the globe, in CSS pixels.
  *
