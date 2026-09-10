@@ -1,0 +1,24 @@
+# What must never be uploaded to a build.
+#
+# `vercel deploy` reads THIS file, not .gitignore. Without it the CLI uploads
+# everything, .env included — and Next fills any variable Vercel does not set
+# from that file. Two live symptoms came from exactly that: production reaching
+# for a database at 127.0.0.1 (this machine's DATABASE_URL) and accepting a
+# webhook signed with a local test secret.
+#
+# Real configuration belongs in Vercel's own environment variables, where it is
+# scoped per environment and never travels in a source upload.
+.env
+.env.*
+!.env.example
+
+# Local state and build output the remote build has no use for.
+.next
+node_modules
+.vercel
+lib/generated
+.tmp
+.tmp-audit
+
+# Machine-specific tooling.
+.claude/skills
