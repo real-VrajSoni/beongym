@@ -2,27 +2,28 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Clock } from "lucide-react";
 import { db } from "@/lib/db";
+import { destroySession, getSession } from "@/lib/auth";
+import { reissueFor } from "@/lib/payments/checkout";
 
 export const metadata = { title: "Confirming your payment" };
 
 /**
- * Where the browser lands after paying.
+ * Dodo's return destination intentionally sits outside `/start`.
  *
- * It grants nothing. Reaching this URL is not proof of payment — anyone can
- * type it — so the page reads the order the webhook writes and reports what it
- * finds. That separation is the whole point of the design: the only thing that
- * moves access is a verified `subscription.active`.
- *
- * A webhook usually beats the redirect back, but not always, so a still-pending
- * order is normal rather than an error. The page refreshes itself and says so
- * plainly instead of showing a spinner that means nothing.
+ * A verified payment changes a prospect into an owner, which makes the signed
+ * prospect cookie invalid. A return page below the Prospect-only layout would
+ * be rejected before it could read the fulfilled order. This page only observes
+ * the order written by the verified webhook; the browser redirect itself grants
+ * nothing.
  */
 export default async function CheckoutReturnPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ order?: string; status?: string }>;
+	searchParams: Promise<{ order?: string }>;
 }) {
 	const { order: orderId } = await searchParams;
+	const session = await getSession();
+
 	const order = orderId
 		? await db.platformOrder.findUnique({
 				where: { id: orderId },
@@ -33,15 +34,20 @@ export default async function CheckoutReturnPage({
 					gymId: true,
 					gymName: true,
 					userId: true,
-					gym: { select: { code: true } },
 				},
 			})
 		: null;
 
-	// Only the verified webhook may mark an order PAID. Once it has, send every
-	// buyer to sign in rather than trusting their pre-payment browser session.
-	if (order?.status === "PAID") {
-		redirect("/login?paid=1");
+	if (order?.status === "PAID" && order.gymId) {
+		if (order.kind === "RENEWAL" && session?.userId === order.userId) {
+			await reissueFor(session.userId);
+			redirect("/gym/billing?renewed=1");
+		}
+
+		// First purchases convert a Prospect into an owner. Remove the stale cookie
+		// and require a normal sign-in instead of attempting to reuse old claims.
+		if (session) await destroySession();
+		redirect("https://beongym.com/login?paid=1");
 	}
 
 	const failed = order?.status === "FAILED" || order?.status === "CANCELLED";
@@ -51,11 +57,11 @@ export default async function CheckoutReturnPage({
 			{failed ? (
 				<>
 					<h1 className="text-[26px] font-semibold tracking-[-0.02em]">
-						That payment didn&rsquo;t go through
+						That payment did not go through
 					</h1>
 					<p className="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">
 						We have not received a verified payment confirmation, so
-						your gym has not been created. If your bank shows a
+						nothing has been activated. If your bank shows a
 						completed charge, contact us before trying again and we
 						will reconcile it.
 					</p>
@@ -87,18 +93,14 @@ export default async function CheckoutReturnPage({
 						Confirming your payment
 					</h1>
 					<p className="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">
-						Your bank has told the payment provider, and we are
-						waiting to hear it from them rather than taking the
-						browser&rsquo;s word for it. This is usually a few
-						seconds.
+						We are waiting for a verified confirmation from Dodo
+						Payments. This usually takes a few seconds.
 					</p>
 					{order ? (
 						<p className="mt-4 text-[12.5px] text-[var(--subtle-foreground)]">
 							Order {order.id.slice(-8)} for {order.gymName}
 						</p>
 					) : null}
-					{/* No JavaScript needed: if the webhook lands while this is on screen,
-              the reload picks it up and the redirect above fires. */}
 					<meta httpEquiv="refresh" content="4" />
 					<p className="mt-7 text-[12.5px] text-[var(--subtle-foreground)]">
 						Taking longer than a minute?{" "}

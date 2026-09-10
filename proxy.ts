@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, homeFor, portalFor, verifySession } from "@/lib/session";
+import {
+	SESSION_COOKIE,
+	homeFor,
+	portalFor,
+	verifySession,
+} from "@/lib/session";
 import { hasAccess } from "@/lib/platform-plans";
 
 /**
@@ -29,63 +34,96 @@ const OWNER_ONLY_PREFIXES = ["/gym/staff", "/gym/billing"];
  * where they would pay you is a good way to not get paid.
  */
 const PAID_PREFIXES = [
-  "/gym/dashboard",
-  "/gym/attendance",
-  "/gym/clients",
-  "/gym/plans",
-  "/gym/subscriptions",
-  "/gym/messages",
-  "/gym/classes",
-  "/gym/leads",
-  "/gym/payments",
-  "/gym/staff",
-  "/gym/listing",
+	"/gym/dashboard",
+	"/gym/attendance",
+	"/gym/clients",
+	"/gym/plans",
+	"/gym/subscriptions",
+	"/gym/messages",
+	"/gym/classes",
+	"/gym/leads",
+	"/gym/payments",
+	"/gym/staff",
+	"/gym/listing",
 ];
 
 export default async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const session = token ? await verifySession(token) : null;
+	const { pathname } = request.nextUrl;
+	const token = request.cookies.get(SESSION_COOKIE)?.value;
+	const session = token ? await verifySession(token) : null;
 
-  if (!session) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
-    return privately(NextResponse.redirect(url));
-  }
+	if (!session) {
+		const url = request.nextUrl.clone();
 
-  // Each role owns exactly one portal prefix.
-  const allowed = portalFor(session.role);
-  if (!pathname.startsWith(allowed)) {
-    return privately(NextResponse.redirect(new URL(homeFor(session.role), request.url)));
-  }
+		// A checkout must always follow account creation. Keep a valid plan choice
+		// while moving an anonymous buyer through signup; the server action still
+		// independently requires a live PROSPECT session before it can create a
+		// Dodo checkout session.
+		if (pathname === "/start/checkout") {
+			url.pathname = "/signup";
+			const plan = request.nextUrl.searchParams
+				.get("plan")
+				?.toUpperCase();
+			if (plan === "MONTHLY" || plan === "ANNUAL") {
+				url.searchParams.set("plan", plan);
+			} else {
+				url.searchParams.delete("plan");
+			}
+			url.searchParams.delete("next");
+			return privately(NextResponse.redirect(url));
+		}
 
-  if (session.role === "GYM_STAFF" && OWNER_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
-    return privately(NextResponse.redirect(new URL("/gym/dashboard?error=owner-only", request.url)));
-  }
+		url.pathname = "/signup";
+		url.searchParams.delete("plan");
+		url.searchParams.delete("next");
+		return privately(NextResponse.redirect(url));
+	}
 
-  // The member app is part of what the gym buys. If the gym's window closes,
-  // its members get one page explaining that rather than an app full of holes.
-  if (
-    session.role === "MEMBER" &&
-    !hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt) &&
-    pathname !== "/me/paused"
-  ) {
-    return privately(NextResponse.redirect(new URL("/me/paused", request.url)));
-  }
+	// Each role owns exactly one portal prefix.
+	const allowed = portalFor(session.role);
+	if (!pathname.startsWith(allowed)) {
+		return privately(
+			NextResponse.redirect(new URL(homeFor(session.role), request.url)),
+		);
+	}
 
-  // The paywall. The expiry rides in the signed token and is compared against
-  // the clock here, so a lapsed membership is turned away before the response
-  // starts streaming rather than after a page has already rendered.
-  if (
-    session.gymId &&
-    !hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt) &&
-    PAID_PREFIXES.some((p) => pathname.startsWith(p))
-  ) {
-    return privately(NextResponse.redirect(new URL("/gym/renew", request.url)));
-  }
+	if (
+		session.role === "GYM_STAFF" &&
+		OWNER_ONLY_PREFIXES.some((p) => pathname.startsWith(p))
+	) {
+		return privately(
+			NextResponse.redirect(
+				new URL("/gym/dashboard?error=owner-only", request.url),
+			),
+		);
+	}
 
-  return privately(NextResponse.next());
+	// The member app is part of what the gym buys. If the gym's window closes,
+	// its members get one page explaining that rather than an app full of holes.
+	if (
+		session.role === "MEMBER" &&
+		!hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt) &&
+		pathname !== "/me/paused"
+	) {
+		return privately(
+			NextResponse.redirect(new URL("/me/paused", request.url)),
+		);
+	}
+
+	// The paywall. The expiry rides in the signed token and is compared against
+	// the clock here, so a lapsed membership is turned away before the response
+	// starts streaming rather than after a page has already rendered.
+	if (
+		session.gymId &&
+		!hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt) &&
+		PAID_PREFIXES.some((p) => pathname.startsWith(p))
+	) {
+		return privately(
+			NextResponse.redirect(new URL("/gym/renew", request.url)),
+		);
+	}
+
+	return privately(NextResponse.next());
 }
 
 /**
@@ -98,12 +136,15 @@ export default async function proxy(request: NextRequest) {
  * is the only way to make Back re-ask the server (and get bounced to /login).
  */
 function privately(response: NextResponse): NextResponse {
-  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-  response.headers.set("Pragma", "no-cache");
-  response.headers.set("Expires", "0");
-  return response;
+	response.headers.set(
+		"Cache-Control",
+		"no-store, no-cache, must-revalidate, max-age=0",
+	);
+	response.headers.set("Pragma", "no-cache");
+	response.headers.set("Expires", "0");
+	return response;
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/gym/:path*", "/start/:path*", "/me/:path*"],
+	matcher: ["/admin/:path*", "/gym/:path*", "/start/:path*", "/me/:path*"],
 };

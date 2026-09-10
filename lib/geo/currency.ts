@@ -19,74 +19,74 @@ import { DIAL_CODES } from "./dial-codes";
  * person who matters.
  */
 export type Money = {
-  /** ISO 4217. */
-  code: string;
-  /** BCP 47 tag, for digit grouping — not for translating the app. */
-  locale: string;
+	/** ISO 4217. */
+	code: string;
+	/** BCP 47 tag, for digit grouping — not for translating the app. */
+	locale: string;
 };
 
 /** Every country `lib/geo/places.ts` can resolve, and what it trades in. */
 const BY_COUNTRY: Record<string, Money> = {
-  India: { code: "INR", locale: "en-IN" },
-  "United Arab Emirates": { code: "AED", locale: "en-AE" },
-  "Saudi Arabia": { code: "SAR", locale: "en-SA" },
-  Qatar: { code: "QAR", locale: "en-QA" },
-  "United Kingdom": { code: "GBP", locale: "en-GB" },
-  Ireland: { code: "EUR", locale: "en-IE" },
-  "United States": { code: "USD", locale: "en-US" },
-  Canada: { code: "CAD", locale: "en-CA" },
-  Australia: { code: "AUD", locale: "en-AU" },
-  "New Zealand": { code: "NZD", locale: "en-NZ" },
-  Singapore: { code: "SGD", locale: "en-SG" },
-  Malaysia: { code: "MYR", locale: "en-MY" },
-  Indonesia: { code: "IDR", locale: "id-ID" },
-  Thailand: { code: "THB", locale: "th-TH" },
-  Philippines: { code: "PHP", locale: "en-PH" },
-  Vietnam: { code: "VND", locale: "vi-VN" },
-  Japan: { code: "JPY", locale: "ja-JP" },
-  "South Korea": { code: "KRW", locale: "ko-KR" },
-  China: { code: "CNY", locale: "zh-CN" },
-  "Hong Kong": { code: "HKD", locale: "en-HK" },
-  Taiwan: { code: "TWD", locale: "zh-TW" },
-  "Sri Lanka": { code: "LKR", locale: "en-LK" },
-  Nepal: { code: "NPR", locale: "ne-NP" },
-  Bangladesh: { code: "BDT", locale: "bn-BD" },
-  Pakistan: { code: "PKR", locale: "en-PK" },
-  Israel: { code: "ILS", locale: "he-IL" },
-  Türkiye: { code: "TRY", locale: "tr-TR" },
-  "South Africa": { code: "ZAR", locale: "en-ZA" },
-  Nigeria: { code: "NGN", locale: "en-NG" },
-  Kenya: { code: "KES", locale: "en-KE" },
-  Ghana: { code: "GHS", locale: "en-GH" },
-  Ethiopia: { code: "ETB", locale: "am-ET" },
-  Egypt: { code: "EGP", locale: "en-EG" },
-  Morocco: { code: "MAD", locale: "fr-MA" },
-  Tunisia: { code: "TND", locale: "fr-TN" },
-  // The euro, in the countries this product actually reaches.
-  France: { code: "EUR", locale: "fr-FR" },
-  Germany: { code: "EUR", locale: "de-DE" },
-  Spain: { code: "EUR", locale: "es-ES" },
-  Portugal: { code: "EUR", locale: "pt-PT" },
-  Italy: { code: "EUR", locale: "it-IT" },
-  Netherlands: { code: "EUR", locale: "nl-NL" },
-  Belgium: { code: "EUR", locale: "nl-BE" },
-  Austria: { code: "EUR", locale: "de-AT" },
-  Greece: { code: "EUR", locale: "el-GR" },
-  Finland: { code: "EUR", locale: "fi-FI" },
-  Switzerland: { code: "CHF", locale: "de-CH" },
-  Sweden: { code: "SEK", locale: "sv-SE" },
-  Norway: { code: "NOK", locale: "nb-NO" },
-  Denmark: { code: "DKK", locale: "da-DK" },
-  Poland: { code: "PLN", locale: "pl-PL" },
-  Czechia: { code: "CZK", locale: "cs-CZ" },
-  Hungary: { code: "HUF", locale: "hu-HU" },
-  Romania: { code: "RON", locale: "ro-RO" },
-  Brazil: { code: "BRL", locale: "pt-BR" },
-  Mexico: { code: "MXN", locale: "es-MX" },
-  Argentina: { code: "ARS", locale: "es-AR" },
-  Chile: { code: "CLP", locale: "es-CL" },
-  Colombia: { code: "COP", locale: "es-CO" },
-  Peru: { code: "PEN", locale: "es-PE" },
+	India: { code: "INR", locale: "en-IN" },
+	"United Arab Emirates": { code: "AED", locale: "en-AE" },
+	"Saudi Arabia": { code: "SAR", locale: "en-SA" },
+	Qatar: { code: "QAR", locale: "en-QA" },
+	"United Kingdom": { code: "GBP", locale: "en-GB" },
+	Ireland: { code: "EUR", locale: "en-IE" },
+	"United States": { code: "USD", locale: "en-US" },
+	Canada: { code: "CAD", locale: "en-CA" },
+	Australia: { code: "AUD", locale: "en-AU" },
+	"New Zealand": { code: "NZD", locale: "en-NZ" },
+	Singapore: { code: "SGD", locale: "en-SG" },
+	Malaysia: { code: "MYR", locale: "en-MY" },
+	Indonesia: { code: "IDR", locale: "id-ID" },
+	Thailand: { code: "THB", locale: "th-TH" },
+	Philippines: { code: "PHP", locale: "en-PH" },
+	Vietnam: { code: "VND", locale: "vi-VN" },
+	Japan: { code: "JPY", locale: "ja-JP" },
+	"South Korea": { code: "KRW", locale: "ko-KR" },
+	China: { code: "CNY", locale: "zh-CN" },
+	"Hong Kong": { code: "HKD", locale: "en-HK" },
+	Taiwan: { code: "TWD", locale: "zh-TW" },
+	"Sri Lanka": { code: "LKR", locale: "en-LK" },
+	Nepal: { code: "NPR", locale: "ne-NP" },
+	Bangladesh: { code: "BDT", locale: "bn-BD" },
+	Pakistan: { code: "PKR", locale: "en-PK" },
+	Israel: { code: "ILS", locale: "he-IL" },
+	Türkiye: { code: "TRY", locale: "tr-TR" },
+	"South Africa": { code: "ZAR", locale: "en-ZA" },
+	Nigeria: { code: "NGN", locale: "en-NG" },
+	Kenya: { code: "KES", locale: "en-KE" },
+	Ghana: { code: "GHS", locale: "en-GH" },
+	Ethiopia: { code: "ETB", locale: "am-ET" },
+	Egypt: { code: "EGP", locale: "en-EG" },
+	Morocco: { code: "MAD", locale: "fr-MA" },
+	Tunisia: { code: "TND", locale: "fr-TN" },
+	// The euro, in the countries this product actually reaches.
+	France: { code: "EUR", locale: "fr-FR" },
+	Germany: { code: "EUR", locale: "de-DE" },
+	Spain: { code: "EUR", locale: "es-ES" },
+	Portugal: { code: "EUR", locale: "pt-PT" },
+	Italy: { code: "EUR", locale: "it-IT" },
+	Netherlands: { code: "EUR", locale: "nl-NL" },
+	Belgium: { code: "EUR", locale: "nl-BE" },
+	Austria: { code: "EUR", locale: "de-AT" },
+	Greece: { code: "EUR", locale: "el-GR" },
+	Finland: { code: "EUR", locale: "fi-FI" },
+	Switzerland: { code: "CHF", locale: "de-CH" },
+	Sweden: { code: "SEK", locale: "sv-SE" },
+	Norway: { code: "NOK", locale: "nb-NO" },
+	Denmark: { code: "DKK", locale: "da-DK" },
+	Poland: { code: "PLN", locale: "pl-PL" },
+	Czechia: { code: "CZK", locale: "cs-CZ" },
+	Hungary: { code: "HUF", locale: "hu-HU" },
+	Romania: { code: "RON", locale: "ro-RO" },
+	Brazil: { code: "BRL", locale: "pt-BR" },
+	Mexico: { code: "MXN", locale: "es-MX" },
+	Argentina: { code: "ARS", locale: "es-AR" },
+	Chile: { code: "CLP", locale: "es-CL" },
+	Colombia: { code: "COP", locale: "es-CO" },
+	Peru: { code: "PEN", locale: "es-PE" },
 };
 
 /**
@@ -106,8 +106,8 @@ export const DEFAULT_CURRENCY = "USD";
 
 /** The currency a gym in this country would quote. */
 export function currencyForCountry(country: string | null | undefined): string {
-  if (!country) return DEFAULT_CURRENCY;
-  return BY_COUNTRY[country.trim()]?.code ?? DEFAULT_CURRENCY;
+	if (!country) return DEFAULT_CURRENCY;
+	return BY_COUNTRY[country.trim()]?.code ?? DEFAULT_CURRENCY;
 }
 
 /**
@@ -117,10 +117,13 @@ export function currencyForCountry(country: string | null | undefined): string {
  * and the owner overrides it if their gym prices in something else, which is
  * ordinary near a border or anywhere the local money is unstable.
  */
-export function suggestCurrency(city?: string | null, country?: string | null): string {
-  if (country) return currencyForCountry(country);
-  if (city) return currencyForCity(city);
-  return DEFAULT_CURRENCY;
+export function suggestCurrency(
+	city?: string | null,
+	country?: string | null,
+): string {
+	if (country) return currencyForCountry(country);
+	if (city) return currencyForCity(city);
+	return DEFAULT_CURRENCY;
 }
 
 /**
@@ -130,7 +133,7 @@ export function suggestCurrency(city?: string | null, country?: string | null): 
  * from it — so this is the one the sign-up path actually needs.
  */
 export function currencyForCity(city: string | null | undefined): string {
-  return currencyForCountry(locate(city ?? undefined)?.country);
+	return currencyForCountry(locate(city ?? undefined)?.country);
 }
 
 /**
@@ -141,65 +144,51 @@ export function currencyForCity(city: string | null | undefined): string {
  * ticket nobody can reproduce.
  */
 export function localeForCurrency(code: string): string {
-  for (const money of Object.values(BY_COUNTRY)) {
-    if (money.code === code) return money.locale;
-  }
-  return "en-US";
+	for (const money of Object.values(BY_COUNTRY)) {
+		if (money.code === code) return money.locale;
+	}
+	return "en-US";
 }
 
 /** Every currency this product knows how to quote in. */
 export const CURRENCY_CODES: string[] = [
-  ...new Set(Object.values(BY_COUNTRY).map((m) => m.code)),
+	...new Set(Object.values(BY_COUNTRY).map((m) => m.code)),
 ].sort();
 
 /** True when a posted currency is one we recognise. The browser is not trusted. */
 export function isKnownCurrency(code: string): boolean {
-  return CURRENCY_CODES.includes(code);
+	return CURRENCY_CODES.includes(code);
 }
 
 /**
- * The list for a dropdown: "USD — $ · US Dollar".
+ * A deterministic currency list for server-rendered native selects.
  *
- * The code, the symbol and the name, because none of the three is enough alone.
- * Half a dozen currencies render as a bare "$", several countries call theirs a
- * dollar, and nobody scrolling a list recognises "SEK" on sight.
- *
- * The dollar leads, then the currencies of the countries with the most gyms,
- * then the rest alphabetically — a settings list nobody has to search is worth
- * more than a strictly ordered one.
+ * `Intl.NumberFormat` may produce a different symbol in Node and the user's
+ * browser (for example, ¥ versus ￥ for JPY), which causes React hydration to
+ * discard the checkout form. ISO codes are unambiguous globally and render
+ * identically in every runtime.
  */
 export function currencyOptions(): { code: string; label: string }[] {
-  const names = (() => {
-    try {
-      return new Intl.DisplayNames(["en"], { type: "currency" });
-    } catch {
-      return null;
-    }
-  })();
-
-  const label = (code: string) => {
-    const symbol = symbolFor(code);
-    const name = names?.of(code);
-    const head = symbol && symbol !== code ? `${code} — ${symbol}` : code;
-    return name && name !== code ? `${head} · ${name}` : head;
-  };
-
-  const first = ["USD", "EUR", "GBP", "INR", "AED", "AUD", "CAD"];
-  const rest = CURRENCY_CODES.filter((c) => !first.includes(c)).sort((a, b) => a.localeCompare(b));
-  return [...first.filter((c) => CURRENCY_CODES.includes(c)), ...rest].map((code) => ({
-    code,
-    label: label(code),
-  }));
+	const first = ["USD", "EUR", "GBP", "INR", "AED", "AUD", "CAD"];
+	const rest = CURRENCY_CODES.filter((c) => !first.includes(c)).sort((a, b) =>
+		a.localeCompare(b),
+	);
+	return [...first.filter((c) => CURRENCY_CODES.includes(c)), ...rest].map(
+		(code) => ({
+			code,
+			label: code,
+		}),
+	);
 }
 
 /** Just the symbol, for a form prefix where the full amount would be noise. */
 export function symbolFor(code: string): string {
-  const parts = new Intl.NumberFormat(localeForCurrency(code), {
-    style: "currency",
-    currency: code,
-    maximumFractionDigits: 0,
-  }).formatToParts(0);
-  return parts.find((p) => p.type === "currency")?.value ?? code;
+	const parts = new Intl.NumberFormat(localeForCurrency(code), {
+		style: "currency",
+		currency: code,
+		maximumFractionDigits: 0,
+	}).formatToParts(0);
+	return parts.find((p) => p.type === "currency")?.value ?? code;
 }
 
 /**
@@ -213,9 +202,11 @@ export function symbolFor(code: string): string {
  * Reuses the dialling-code table, which already pairs every country this
  * product reaches with its ISO code.
  */
-export function countryCodeFor(country: string | null | undefined): string | null {
-  if (!country) return null;
-  const name = country.trim().toLowerCase();
-  const hit = DIAL_CODES.find((c) => c.name.toLowerCase() === name);
-  return hit?.iso ?? null;
+export function countryCodeFor(
+	country: string | null | undefined,
+): string | null {
+	if (!country) return null;
+	const name = country.trim().toLowerCase();
+	const hit = DIAL_CODES.find((c) => c.name.toLowerCase() === name);
+	return hit?.iso ?? null;
 }
