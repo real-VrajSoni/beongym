@@ -78,6 +78,7 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
       const order = await tx.platformOrder.create({
         data: {
           userId: session.userId,
+          kind: "CHECKOUT",
           tier: plan.tier,
           billingCycle: plan.key,
           amount,

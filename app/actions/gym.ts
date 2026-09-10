@@ -149,20 +149,16 @@ export async function purchaseAccessAction(planKey: string): Promise<ActionResul
       data: { tier: buying, accessExpiresAt, status: "ACTIVE", trialEndsAt: null },
     });
 
+    // A new row every time. This used to upsert on the gym, because a gym could
+    // hold only one order — so each renewal wrote over the payment before it and
+    // a year of monthly renewals left one row and no history. Money that cannot
+    // be reconciled is money you cannot refund, dispute or explain.
     const amount = orderValue(plan.key);
-    await db.platformOrder.upsert({
-      where: { gymId: gym.id },
-      update: {
-        tier: buying,
-        billingCycle: plan.key,
-        amount,
-        currency: "USD",
-        status: "PAID",
-        paidAt: new Date(),
-      },
-      create: {
+    await db.platformOrder.create({
+      data: {
         gymId: gym.id,
         userId: session.userId,
+        kind: "RENEWAL",
         tier: buying,
         billingCycle: plan.key,
         amount,

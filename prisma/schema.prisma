@@ -43,6 +43,20 @@ enum Role {
   PROSPECT
 }
 
+/// Which door an order came through. The webhook needs it: what "paid" should
+/// provision differs by flow — a listing creates a gym, a claim transfers one,
+/// a renewal extends the window on a gym that already exists.
+enum OrderKind {
+  /// /start/checkout — an account buying its first gym.
+  CHECKOUT
+  /// /list — a gym putting itself on the map, before any account exists.
+  LISTING
+  /// /claim — taking over an unclaimed listing.
+  CLAIM
+  /// /gym/billing — a gym that already exists, buying more time.
+  RENEWAL
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -176,6 +190,34 @@ model GymLink {
   @@map("gym_links")
 }
 
+/// Every webhook this platform has accepted, by the gateway's own event id.
+///
+/// Dodo retries a failed delivery up to eight times across ten hours, and a
+/// response slower than fifteen seconds counts as failed — so the same event
+/// arrives again routinely, not exceptionally. The unique id is what makes
+/// processing it twice impossible rather than unlikely: the insert fails, and
+/// the handler returns 200 without touching anything.
+///
+/// Kept after processing. "Did we get that payment?" is a question somebody
+/// asks about a specific event weeks later, and the answer has to be in a row.
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  /// The `webhook-id` header. The idempotency key, enforced by the database.
+  eventId     String   @unique @map("event_id")
+  /// `payment.succeeded`, `subscription.renewed`, and so on.
+  type        String
+  /// The verified body, exactly as received. Not re-fetched, not reconstructed.
+  payload     Json
+  receivedAt  DateTime @default(now()) @map("received_at")
+  processedAt DateTime? @map("processed_at")
+  /// Set when handling threw. A row with this filled in is one to look at.
+  error       String?
+
+  @@index([type])
+  @@index([receivedAt])
+  @@map("webhook_events")
+}
+
 model PlatformOrder {
   id           String       @id @default(cuid())
   /// Null for a map listing bought without an account — the whole point of
@@ -183,14 +225,25 @@ model PlatformOrder {
   userId       String?      @map("user_id")
   /// Who bought it, when there is no account to look that up from.
   email        String?
-  gymId        String?      @unique @map("gym_id")
+  gymId        String?      @map("gym_id")
   tier         PlatformTier
   billingCycle BillingCycle @default(MONTHLY) @map("billing_cycle")
   amount       Decimal      @db.Decimal(12, 2)
   currency     String       @default("USD")
   status       OrderStatus  @default(PENDING)
+  kind         OrderKind    @default(CHECKOUT)
   provider     String?
-  providerRef  String?      @map("provider_ref")
+  /// The gateway's own id for this payment.
+  ///
+  /// Unique, and that is the whole point: a webhook retried eight times over
+  /// ten hours must land once. The provider's id is the only value both sides
+  /// agree on, so it is the idempotency key, enforced by the database rather
+  /// than by remembering to check.
+  providerRef  String?      @unique @map("provider_ref")
+  /// What the flow knew at checkout and the columns do not — the claimant's
+  /// stated role and number, the listing's city. Read by the webhook when it
+  /// provisions, and by a human reading a disputed order months later.
+  meta         Json?
   /// Captured at checkout so the gym can be created the moment payment lands.
   gymName      String       @map("gym_name")
   city         String?
@@ -201,6 +254,7 @@ model PlatformOrder {
   gym  Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([gymId])
   @@index([status])
   @@index([createdAt])
   @@map("platform_orders")
@@ -287,7 +341,14 @@ model Gym {
   plans        Plan[]
   attendance   Attendance[]
   links        GymLink[]
-  order        PlatformOrder?
+  /// Every order this gym has ever placed, newest first.
+  ///
+  /// Was one-to-one, which meant a gym could hold exactly one order for its
+  /// whole life — so `purchaseAccessAction` upserted, and every renewal wrote
+  /// over the record of the payment before it. A gym that renewed monthly for
+  /// a year had one row and no history: nothing to reconcile a refund against,
+  /// nothing to show an owner disputing a charge.
+  orders       PlatformOrder[]
   messageRules MessageRule[]
   messages     MessageLog[]
   classes      GymClass[]

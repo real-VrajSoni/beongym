@@ -147,7 +147,7 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
           currency: "USD",
           status: "PAID",
           provider: "manual",
-          providerRef: `map-listing:${plan.key}`,
+          kind: "LISTING",
           gymName: created.name,
           city: created.city,
           paidAt: new Date(),

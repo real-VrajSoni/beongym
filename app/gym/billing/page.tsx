@@ -27,7 +27,11 @@ export default async function BillingPage() {
       accessExpiresAt: true,
       createdAt: true,
       _count: { select: { members: true, staff: true } },
-      order: { select: { billingCycle: true, amount: true, paidAt: true } },
+      orders: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { billingCycle: true, amount: true, paidAt: true },
+      },
     },
   });
 
@@ -73,13 +77,13 @@ export default async function BillingPage() {
               <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                 {state === "active" ? (
                   <>
-                    Paid up to {formatDate(gym.accessExpiresAt!)}. Renewing early stacks onto
-                    what you have left — you never lose days you already paid for.
+                    Paid up to {formatDate(gym.accessExpiresAt!)}. Renewing early stacks onto what
+                    you have left — you never lose days you already paid for.
                   </>
                 ) : (
                   <>
-                    Your gym is off the map and the workspace is locked until you renew. Nothing
-                    has been deleted — members, payments and history are all waiting.
+                    Your gym is off the map and the workspace is locked until you renew. Nothing has
+                    been deleted — members, payments and history are all waiting.
                   </>
                 )}
               </p>
@@ -95,9 +99,7 @@ export default async function BillingPage() {
           icon={CreditCard}
           accent
           hint={
-            lifetime
-              ? "paid once, yours for good"
-              : `from ${formatUsd(ENTRY_PRICE)} per 30 days`
+            lifetime ? "paid once, yours for good" : `from ${formatUsd(ENTRY_PRICE)} per 30 days`
           }
         />
         <StatCard
@@ -121,21 +123,17 @@ export default async function BillingPage() {
           Launch pricing — the struck-through figure is what these return to.
         </p>
       </div>
-      <TierPicker
-        canEdit
-        daysRemaining={remaining}
-        lifetime={lifetime}
-      />
+      <TierPicker canEdit daysRemaining={remaining} lifetime={lifetime} />
 
       <div className="mt-5">
         <Section title="Billing" bodyClassName="px-5 py-4">
           <p className="text-[13px] leading-relaxed text-muted-foreground">
-            One price worldwide, quoted in US dollars — ${planByKey("MONTHLY").price} for 30 days
-            or ${planByKey("ANNUAL").price} for a year. Local tax (GST, VAT,
-            sales tax) is worked out from your country by the payment provider at
-            checkout and added there. Dodo Payments is not connected in this release: buying or
-            renewing grants the access immediately and records the order — wiring the gateway
-            replaces one server action and leaves the rest of this screen unchanged.
+            One price worldwide, quoted in US dollars — ${planByKey("MONTHLY").price} for 30 days or
+            ${planByKey("ANNUAL").price} for a year. Local tax (GST, VAT, sales tax) is worked out
+            from your country by the payment provider at checkout and added there. Dodo Payments is
+            not connected in this release: buying or renewing grants the access immediately and
+            records the order — wiring the gateway replaces one server action and leaves the rest of
+            this screen unchanged.
           </p>
         </Section>
       </div>

@@ -56,7 +56,10 @@ export async function claimGymAction(formData: FormData): Promise<ActionResult> 
           currency: "USD",
           status: "PAID",
           provider: "manual",
-          providerRef: `claim:${d.role}:${d.phone}`,
+          kind: "CLAIM",
+          // What the admin rings to verify the claim. It was being smuggled
+          // into providerRef, which now means one thing only: the gateway's id.
+          meta: { role: d.role, phone: d.phone },
           gymName: gym.name,
           city: gym.city,
           paidAt: new Date(),

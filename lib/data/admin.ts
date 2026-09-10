@@ -250,7 +250,8 @@ export async function getGymDetail(gymId: string) {
           _count: { select: { subscriptions: true } },
         },
       },
-      order: { select: { billingCycle: true } },
+      // The most recent order — a gym has a history of them now.
+      orders: { orderBy: { createdAt: "desc" }, take: 1, select: { billingCycle: true } },
       _count: { select: { members: true, staff: true, attendance: true } },
     },
   });
