@@ -62,7 +62,7 @@ const PILLARS: Pillar[] = [
 export function Pillars() {
   return (
     <section id="what" className="scroll-mt-20 border-t border-[var(--mk-border)]">
-      <div className="mx-auto max-w-5xl px-6 py-20">
+      <div className="mx-auto max-w-7xl px-6 py-20">
         <div className="max-w-2xl">
           <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
             What it replaces
@@ -71,9 +71,9 @@ export function Pillars() {
             Five things off the counter.
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-[var(--mk-fg-muted)]">
-            Most gyms already have a system. It is a register, a spreadsheet, a payment notebook,
-            an attendance sheet and a WhatsApp group — and only one person understands all five.
-            This is those five, joined up.
+            Most gyms already have a system. It is a register, a spreadsheet, a payment notebook, an
+            attendance sheet and a WhatsApp group — and only one person understands all five. This
+            is those five, joined up.
           </p>
         </div>
 

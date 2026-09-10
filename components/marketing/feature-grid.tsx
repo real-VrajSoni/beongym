@@ -126,7 +126,7 @@ const FEATURES: Feature[] = [
 export function FeatureGrid() {
   return (
     <section id="features" className="scroll-mt-20 border-t border-[var(--mk-border)]">
-      <div className="mx-auto max-w-6xl px-6 py-20">
+      <div className="mx-auto max-w-7xl px-6 py-20">
         <div className="max-w-2xl">
           <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
             Everything, in one plan
@@ -136,8 +136,8 @@ export function FeatureGrid() {
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-[var(--mk-fg-muted)]">
             Most gyms run on a paper register, a WhatsApp group and a spreadsheet only one person
-            understands. This replaces all three, and every plan includes all twelve — no tier
-            above yours holding something back.
+            understands. This replaces all three, and every plan includes all twelve — no tier above
+            yours holding something back.
           </p>
         </div>
 

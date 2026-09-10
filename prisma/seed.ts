@@ -1843,7 +1843,7 @@ const UNCLAIMED: {
   },
   {
     code: "SHAKTI-8804",
-    name: "Shakti Wellness & Gym",
+    name: "Shakti Yoga & Wellness",
     tagline: "Strength, yoga and recovery under one roof.",
     description:
       "A neighbourhood gym in Salt Lake pairing a full weights floor with daily yoga and a physiotherapy room.\n\nThis listing was compiled from public information. If you run this gym, claim it to edit the details and take enquiries.",
@@ -1878,6 +1878,7 @@ async function seedUnclaimed(passwordHash: string) {
         city: g.city,
         country: locate(g.city)?.country ?? null,
         currency: currencyForCity(g.city),
+        businessType: "YOGA_STUDIO",
         latitude: g.lat,
         longitude: g.lng,
         address: g.address,
@@ -2005,7 +2006,7 @@ const PIN_ONLY: {
   },
   {
     code: "NORTH-4471",
-    name: "Northside Barbell",
+    name: "Northside Climbing Co.",
     tagline: "Powerlifting, plain and simple.",
     city: "Toronto",
     lat: 43.6532,

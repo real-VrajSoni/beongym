@@ -7,6 +7,7 @@ import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
+import { DEFAULT_BUSINESS_TYPE, isBusinessType } from "@/lib/business-types";
 import { reissueFor, startPurchase } from "@/lib/payments/checkout";
 
 const checkoutSchema = z.object({
@@ -33,6 +34,13 @@ const checkoutSchema = z.object({
     .trim()
     .toUpperCase()
     .refine(isKnownCurrency, "Pick a currency from the list")
+    .optional(),
+  /** What kind of place this is. Checked against the list, never trusted. */
+  businessType: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine(isBusinessType, "Pick one from the list")
     .optional(),
 });
 
@@ -80,6 +88,7 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
         latitude: place?.lat ?? null,
         longitude: place?.lng ?? null,
         currency: d.currency ?? suggestCurrency(d.city, place?.country),
+        businessType: d.businessType ?? DEFAULT_BUSINESS_TYPE,
       },
     });
 

@@ -1,25 +1,35 @@
-
 /**
  * A static rendering of the gym owner dashboard, built from the same tokens as
  * the real one so it stays honest in both themes. Not a screenshot: it scales,
  * themes and localises, and never goes stale against the product.
  */
+/**
+ * The same four tiles the real dashboard opens with.
+ *
+ * Kept in step with it deliberately. It used to show "Pending check-ins", a
+ * feature that has since been taken out of the product, and revenue in rupees —
+ * so the first thing a visitor saw was a screenshot of something that no longer
+ * existed, priced in a currency most of them do not use. A preview that drifts
+ * is worse than no preview: it is a promise the product does not keep.
+ */
 const KPIS = [
   { label: "Active members", value: "142", note: "on a live membership" },
-  { label: "Revenue this month", value: "₹2.4L", note: "▲ 18% vs last" },
-  { label: "Inside now", value: "23", note: "live occupancy" },
-  { label: "Pending check-ins", value: "6", note: "awaiting review" },
+  { label: "Revenue this month", value: "$4,180", note: "▲ 18% vs last" },
+  { label: "On the floor now", value: "23", note: "live occupancy" },
+  { label: "Calls due", value: "6", note: "enquiries to ring back" },
 ];
 
+/** Today's timetable, which is what the real dashboard puts here. */
 const SCHEDULE = [
-  { time: "10:00 AM", type: "Progress Review", who: "Rahul Sharma", mark: "RS" },
-  { time: "2:00 PM", type: "Consultation", who: "Rohan Desai", mark: "RD" },
-  { time: "5:30 PM", type: "Follow-up", who: "Meera Reddy", mark: "MR" },
+  { time: "6:30 AM", type: "Strength · 12 booked", who: "Alex Morgan", mark: "AM" },
+  { time: "9:00 AM", type: "Yoga flow · 8 booked", who: "Farah Sheikh", mark: "FS" },
+  { time: "6:00 PM", type: "Conditioning · 18 booked", who: "Alex Morgan", mark: "AM" },
 ];
 
+/** Who needs a conversation: renewals and arrears, not check-ins. */
 const ATTENTION = [
-  { who: "Priya Shah", mark: "PS", note: "Check-in awaiting review", tone: "info" },
-  { who: "Kabir Joshi", mark: "KJ", note: "Due 13 days ago", tone: "warn" },
+  { who: "Priya Shah", mark: "PS", note: "Renews in 3 days", tone: "info" },
+  { who: "Kabir Joshi", mark: "KJ", note: "Payment due 13 days ago", tone: "warn" },
 ];
 
 export function DashboardPreview() {
@@ -115,13 +125,12 @@ export function DashboardPreview() {
                 <div className="h-full w-[72%] rounded-full bg-[var(--brand)]" />
               </div>
               <p className="mt-1.5 text-[9.5px] text-[var(--mk-fg-subtle)]">
-                72% of check-ins reviewed
+                68% renewed before expiry
               </p>
             </div>
           </div>
         </div>
       </div>
-
     </div>
   );
 }

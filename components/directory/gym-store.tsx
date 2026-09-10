@@ -9,6 +9,7 @@ import { LiveNumber, useLiveGyms, useLiveStats } from "./live-count";
 import type { LiveStats } from "@/app/actions/stats";
 import { ENTRY_PRICE } from "@/lib/platform-plans";
 import { EmptyState } from "@/components/ui/empty-state";
+import { businessType } from "@/lib/business-types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -99,10 +100,7 @@ export function GymStore({
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Stat value={stats.gyms} label={stats.gyms === 1 ? "gym live" : "gyms live"} live />
-            <Stat
-              value={stats.countries}
-              label={stats.countries === 1 ? "country" : "countries"}
-            />
+            <Stat value={stats.countries} label={stats.countries === 1 ? "country" : "countries"} />
             <Stat value={stats.views} label="views" icon={Eye} />
           </div>
           <Link
@@ -136,8 +134,8 @@ export function GymStore({
                   </h1>
                   <p className="mt-2.5 text-[13.5px] leading-relaxed text-[var(--mk-fg-muted)]">
                     Spin the globe, open a gym, call it — no fees, no middleman, no sign-up. Every
-                    pin belongs to a gym that pays to be on here, which is why the numbers you
-                    dial get answered.
+                    pin belongs to a gym that pays to be on here, which is why the numbers you dial
+                    get answered.
                   </p>
                   <Link
                     href="/list"
@@ -275,6 +273,13 @@ export function GymStore({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-medium">{gym.name}</p>
                     <p className="truncate text-[12.5px] text-[var(--mk-fg-subtle)]">
+                      {/* What the place is, first. Somebody scanning a
+                          directory for a yoga studio should not have to open
+                          twelve listings called "gym" to find one. */}
+                      <span className="font-medium text-[var(--mk-fg-muted)]">
+                        {businessType(gym.businessType).short}
+                      </span>
+                      {" · "}
                       {[gym.city, gym.country].filter(Boolean).join(", ")}
                       {gym.tagline ? ` · ${gym.tagline}` : ""}
                     </p>

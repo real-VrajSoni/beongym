@@ -8,6 +8,7 @@ import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
+import { DEFAULT_BUSINESS_TYPE, isBusinessType } from "@/lib/business-types";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
 import { startPurchase } from "@/lib/payments/checkout";
 
@@ -26,6 +27,12 @@ const listingSchema = z.object({
     .trim()
     .toUpperCase()
     .refine(isKnownCurrency, "Pick a currency from the list")
+    .optional(),
+  businessType: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine(isBusinessType, "Pick one from the list")
     .optional(),
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   amenities: z.string().trim().max(400).optional(),
@@ -119,6 +126,7 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
         city: canonicalCity(d.city) ?? d.city,
         country: place?.country ?? null,
         currency: d.currency ?? suggestCurrency(d.city, place?.country),
+        businessType: d.businessType ?? DEFAULT_BUSINESS_TYPE,
         latitude: lat,
         longitude: lng,
         tagline: d.tagline || null,

@@ -2,13 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  geoContains,
-  geoDistance,
-  geoGraticule10,
-  geoOrthographic,
-  geoPath,
-} from "d3-geo";
+import { geoContains, geoDistance, geoGraticule10, geoOrthographic, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import type { Feature, FeatureCollection } from "geojson";
@@ -16,14 +10,18 @@ import { ArrowRight, Eye, LocateFixed, MapPin, Minus, Plus, X } from "lucide-rea
 import type { DirectoryGym } from "@/lib/data/directory";
 import { GymLinks } from "./gym-links";
 import { layoutMarkers, type LaidOut, type LaidOutCity } from "@/lib/geo/globe-layout";
+import { businessType } from "@/lib/business-types";
 import { cn } from "@/lib/utils";
 
 /**
- * Idle drift, in degrees per millisecond. Slow on purpose: the globe is a map
- * you read, not an animation you watch, and a fast spin turns every pin into a
- * moving target.
+ * Idle drift, in degrees per millisecond.
+ *
+ * Fast enough to read as alive, slow enough that a pin stays a target rather
+ * than a moving one — roughly a full turn every two minutes. The drift stops
+ * the moment anybody takes hold of the globe and never resumes, so this only
+ * governs how it behaves while nobody is touching it.
  */
-const SPIN_PER_MS = 0.0018;
+const SPIN_PER_MS = 0.003;
 /**
  * Pin diameter at the centre of the globe, in CSS pixels.
  *
@@ -107,7 +105,9 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
    * it on each change would restart the animation.
    */
   const openCityRef = useRef<string | null>(null);
-  const tween = useRef<{ from: [number, number]; to: [number, number]; start: number } | null>(null);
+  const tween = useRef<{ from: [number, number]; to: [number, number]; start: number } | null>(
+    null,
+  );
 
   const [world, setWorld] = useState<FeatureCollection | null>(null);
   /**
@@ -392,7 +392,11 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
         // Nearest the centre first: that pin keeps its spot and absorbs the rest.
         .sort((a, b) => a.dist - b.dist || b.gym.views - a.gym.views);
 
-      const { markers: laid, leaders, centres } = layoutMarkers(
+      const {
+        markers: laid,
+        leaders,
+        centres,
+      } = layoutMarkers(
         front.map((p) => ({ gym: p.gym, x: p.x, y: p.y, depth: p.depth })),
         pinSize,
         openCityRef.current,
@@ -611,9 +615,11 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
             {isHovered ? (
               <span className="pointer-events-none absolute top-full left-1/2 mt-1.5 -translate-x-1/2 rounded-md border border-[var(--mk-border-strong)] bg-[var(--mk-bg)]/95 px-2 py-1 text-[11.5px] font-medium whitespace-nowrap shadow-lg backdrop-blur">
                 {gym.name}
-                {fanned && gym.city ? (
-                  <span className="text-[var(--mk-fg-subtle)]"> · {gym.city}</span>
-                ) : null}
+                <span className="text-[var(--mk-fg-subtle)]">
+                  {" · "}
+                  {businessType(gym.businessType).short}
+                  {fanned && gym.city ? ` · ${gym.city}` : ""}
+                </span>
               </span>
             ) : null}
           </button>
@@ -677,10 +683,7 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
 
       {selectedGym ? (
         <div className="absolute inset-x-3 bottom-3 z-30 sm:inset-x-auto sm:bottom-6 sm:left-6 sm:w-[320px]">
-          <GlobeGymCard
-            gym={selectedGym}
-            onClose={() => setSelected(null)}
-          />
+          <GlobeGymCard gym={selectedGym} onClose={() => setSelected(null)} />
         </div>
       ) : (
         <p className="pointer-events-none absolute inset-x-0 bottom-3 z-10 text-center text-[12px] text-[var(--mk-fg-subtle)] sm:bottom-4">
@@ -802,7 +805,13 @@ function GlobeGymCard({ gym, onClose }: { gym: Placed; onClose: () => void }) {
         <GymAvatar gym={gym} className="size-11 rounded-xl text-[14px]" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14.5px] font-semibold">{gym.name}</p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--mk-fg-muted)]">
+          {/* What the place actually is. The map used to call a Pilates studio
+              a gym, which is the small wrongness that makes a directory feel
+              like it was not built for you. */}
+          <p className="mt-0.5 text-[11px] font-medium tracking-[0.06em] text-[var(--brand)] uppercase">
+            {businessType(gym.businessType).short}
+          </p>
+          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[var(--mk-fg-muted)]">
             <MapPin className="size-3" />
             {[gym.city, gym.country].filter(Boolean).join(", ") || "On the map"}
             <span className="text-[var(--mk-fg-subtle)]">·</span>

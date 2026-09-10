@@ -5,7 +5,6 @@ import {
   Building2,
   Check,
   CreditCard,
-  Globe2,
   Lock,
   ShieldCheck,
   Smartphone,
@@ -142,7 +141,7 @@ export default async function LandingPage() {
   return (
     <div className="min-h-dvh bg-[var(--mk-bg)] text-[var(--mk-fg)]">
       <header className="sticky top-0 z-40 border-b border-[var(--mk-border)] bg-[var(--mk-bg)]/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Logo />
           {/* Six destinations: the five sections of the page in the order they
               appear, then the directory. The gaps tighten a step at a time as
@@ -235,13 +234,16 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      <Pillars />
-
+      {/* The map leads. It is the thing nobody else has, and the thing people
+          arrive wanting to look at — so it comes before the argument about
+          registers and payment notebooks rather than after it. */}
       <GlobeBand gyms={gyms} initialStats={stats} />
+
+      <Pillars />
 
       {/* Two experiences */}
       <section className="border-t border-[var(--mk-border)] bg-[var(--mk-panel)]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mx-auto max-w-7xl px-6 py-20">
           <div className="max-w-2xl">
             <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
               What you open in the morning
@@ -292,7 +294,7 @@ export default async function LandingPage() {
 
       {/* How it works */}
       <section id="how" className="scroll-mt-20 border-t border-[var(--mk-border)]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mx-auto max-w-7xl px-6 py-20">
           <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
             Get going in minutes
           </p>
@@ -328,46 +330,39 @@ export default async function LandingPage() {
 
       {/* Pricing */}
       <section id="pricing" className="scroll-mt-20 border-t border-[var(--mk-border)]">
-        <div className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mx-auto max-w-7xl px-6 py-20">
           <div className="text-center">
             <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
               Pricing
             </p>
-            <h2 className="mt-3 text-[32px] leading-tight font-semibold tracking-[-0.02em]">
-              One product. A month at a time, or a year.
+            <h2 className="mt-3 text-[34px] leading-[1.1] font-semibold tracking-[-0.02em]">
+              Less than one member&rsquo;s monthly fee.
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-[15px] text-[var(--mk-fg-muted)]">
-              Both plans are the same product — members, payments, attendance, renewals, enquiries,
-              classes, staff and your listing on the map. No tier above yours holding something
-              back. The only difference is how long it lasts.
+            <p className="mx-auto mt-4 max-w-2xl text-[15.5px] leading-relaxed text-[var(--mk-fg-muted)]">
+              Everything is in both plans — members, payments, attendance, renewals, enquiries,
+              classes, staff and your pin on the map. There is no tier above yours holding something
+              back. The only choice is how long it runs for.
             </p>
+
+            {/* The three objections a gym owner actually has, answered before
+                they read a price. Vague reassurance persuades nobody; these are
+                the specific things people ask on the phone. */}
+            <ul className="mx-auto mt-7 flex max-w-3xl flex-wrap items-center justify-center gap-x-6 gap-y-2.5 text-[13.5px] text-[var(--mk-fg-muted)]">
+              {[
+                "Unlimited members and staff",
+                "No commission on anything you charge",
+                "Nothing renews on its own",
+                "Cancel by not paying again",
+              ].map((line) => (
+                <li key={line} className="flex items-center gap-1.5">
+                  <Check className="size-3.5 text-[var(--success)]" />
+                  {line}
+                </li>
+              ))}
+            </ul>
           </div>
 
           <PricingTable signedIn={signedIn} />
-
-          {/* The no-account door: pay first, and the listing is live while you
-              are still on the page. */}
-          <div className="mt-8 flex flex-col gap-5 rounded-2xl border border-[var(--brand)]/30 bg-[var(--brand)]/[0.07] p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-            <div className="flex items-start gap-3">
-              <Globe2 className="mt-0.5 size-5 shrink-0 text-[var(--brand)]" />
-              <div>
-                <p className="text-[15.5px] font-semibold">
-                  You don&rsquo;t need an account to start. You need three minutes.
-                </p>
-                <p className="mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-[var(--mk-fg-muted)]">
-                  Pay, put in your gym&rsquo;s name and city, and you are set up before you close
-                  the tab — workspace ready, and your gym on the public map with your phone and
-                  socials on it. The login gets made for you afterwards.
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/list"
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-5 text-[14px] font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
-            >
-              Put my gym on the map <ArrowRight className="size-4" />
-            </Link>
-          </div>
 
           {/* Why the free tier is gone. Said plainly, because a gym owner who
               feels handled stops reading. */}
@@ -445,7 +440,7 @@ export default async function LandingPage() {
       </section>
 
       <footer className="border-t border-[var(--mk-border)]">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-8 text-[12.5px] text-[var(--mk-fg-subtle)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-[12.5px] text-[var(--mk-fg-subtle)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <LogoMark className="size-5" />
             <p>
@@ -486,7 +481,7 @@ export default async function LandingPage() {
         {/* A policy nobody can find is not published. These sit on their own
             row so they read as the legal footer rather than as more navigation,
             and so a payment provider checking the site finds all four at once. */}
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-7xl px-6">
           <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--mk-border)] pt-5 text-[12.5px] text-[var(--mk-fg-subtle)]">
             <Link href="/terms" className="hover:text-[var(--mk-fg-muted)]">
               Terms of Service
@@ -505,7 +500,7 @@ export default async function LandingPage() {
             </span>
           </div>
         </div>
-        <div className="mx-auto max-w-6xl px-6 pb-8">
+        <div className="mx-auto max-w-7xl px-6 pb-8">
           <p className="flex items-start gap-1.5 text-[11.5px] text-[var(--mk-fg-subtle)]">
             <Lock className="mt-0.5 size-3 shrink-0" />
             Two things are not connected yet, and we would rather say so here than let you find out

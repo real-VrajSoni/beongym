@@ -81,7 +81,7 @@ const EVERYONE: { icon: LucideIcon; label: string }[] = [
 export function Niches() {
   return (
     <section id="who" className="scroll-mt-20 border-t border-[var(--mk-border)]">
-      <div className="mx-auto max-w-6xl px-6 py-20">
+      <div className="mx-auto max-w-7xl px-6 py-20">
         <div className="max-w-2xl">
           <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
             Who it is built for

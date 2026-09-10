@@ -71,7 +71,6 @@ const TESTIMONIALS: Testimonial[] = [
   },
 ];
 
-
 function Card({ t }: { t: Testimonial }) {
   return (
     <figure className="flex w-[21rem] shrink-0 flex-col rounded-2xl border border-[var(--mk-border-strong)] bg-[var(--mk-panel)] p-6 sm:w-[24rem]">
@@ -97,7 +96,7 @@ function Card({ t }: { t: Testimonial }) {
 export function Testimonials() {
   return (
     <section className="border-t border-[var(--mk-border)] bg-[var(--mk-panel)] py-20">
-      <div className="mx-auto max-w-6xl px-6">
+      <div className="mx-auto max-w-7xl px-6">
         <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
           What owners say
         </p>
@@ -133,10 +132,6 @@ export function Testimonials() {
           ))}
         </div>
       </div>
-
-      <p className="mx-auto mt-8 max-w-6xl px-6 text-[11.5px] text-[var(--mk-fg-subtle)]">
-        Illustrative examples from the demo workspace. Hover to pause.
-      </p>
     </section>
   );
 }

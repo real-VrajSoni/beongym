@@ -53,6 +53,28 @@ enum Role {
 /// the end of the period it paid for. Conflating the two would cut somebody off
 /// the moment they clicked cancel, which is neither what they bought nor what
 /// the refund policy says.
+/// What kind of place a listing is. See lib/business-types.ts.
+///
+/// The product is not gym-shaped — a yoga studio has members, memberships,
+/// payments and renewals in the same way — so this exists to let the public map
+/// say what somebody actually runs rather than filing everyone under "gym".
+enum BusinessType {
+  GYM
+  FITNESS_STUDIO
+  YOGA_STUDIO
+  PILATES_STUDIO
+  DANCE_STUDIO
+  CROSSFIT_BOX
+  MARTIAL_ARTS
+  BOXING_GYM
+  CLIMBING_GYM
+  SWIMMING
+  SPORTS_CLUB
+  PERSONAL_TRAINING
+  WELLNESS
+  OTHER
+}
+
 enum BillingStatus {
   /// Never subscribed through the gateway. Seeded gyms and manual grants.
   NONE
@@ -362,6 +384,10 @@ model Gym {
   /// that metadata is missing — an event replayed from the dashboard, say.
   /// Unique on the subscription, because two gyms sharing one is a bug we would
   /// rather have the database refuse than discover in a support ticket.
+  /// What kind of place this is, for the public map and the directory filter.
+  /// Does not change how the workspace behaves.
+  businessType       BusinessType  @default(GYM) @map("business_type")
+
   dodoCustomerId     String?       @map("dodo_customer_id")
   dodoSubscriptionId String?       @unique @map("dodo_subscription_id")
   /// Where the subscription stands. Not whether access is granted — that is
@@ -394,6 +420,7 @@ model Gym {
 
   @@index([status])
   @@index([dodoCustomerId])
+  @@index([businessType])
   @@map("gyms")
 }
 

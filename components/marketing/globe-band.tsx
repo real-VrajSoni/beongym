@@ -39,7 +39,7 @@ export function GlobeBand({
 
   return (
     <section id="map" className="scroll-mt-16 border-t border-[var(--mk-border)]">
-      <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-20 lg:grid-cols-[1fr_1.618fr] lg:gap-14">
+      <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-20 lg:grid-cols-[1fr_1.618fr] lg:gap-14">
         <div>
           <p className="text-[11.5px] font-semibold tracking-[0.18em] text-[var(--mk-fg-subtle)] uppercase">
             And one more thing
@@ -51,13 +51,16 @@ export function GlobeBand({
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-[var(--mk-fg-muted)]">
             Your subscription also puts your gym on a public map with your phone, your socials and
-            your opening hours on it — so somebody searching your area finds you rather than the
-            gym down the road. It is included, not the reason to buy.
+            your opening hours on it — so somebody searching your area finds you rather than the gym
+            down the road. It is included, not the reason to buy.
           </p>
 
           <dl className="mt-7 flex flex-wrap gap-x-8 gap-y-4">
             {[
-              [<LiveNumber key="g" value={stats.gyms} />, stats.gyms === 1 ? "gym live" : "gyms live"],
+              [
+                <LiveNumber key="g" value={stats.gyms} />,
+                stats.gyms === 1 ? "gym live" : "gyms live",
+              ],
               [<LiveNumber key="c" value={stats.cities} dot={false} />, "cities"],
               [<LiveNumber key="n" value={stats.countries} dot={false} />, "countries"],
             ].map(([value, labelText], i) => (
@@ -71,8 +74,14 @@ export function GlobeBand({
           </dl>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
+            {/* Account first, then payment, then straight into the workspace.
+                This used to open the long listing form at /list, which asked
+                for photos, hours and amenities before anyone had paid — a lot
+                of typing to do on spec. /signup carries the plan through to
+                checkout, and the store details get filled in afterwards, in
+                settings, where they can be changed. */}
             <Link
-              href="/list"
+              href="/signup?plan=MONTHLY"
               className="inline-flex h-11 items-center gap-2 rounded-lg bg-[var(--brand)] px-5 text-[14px] font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
               <Sparkles className="size-4" /> Put my gym on the map

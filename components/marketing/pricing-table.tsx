@@ -2,13 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Check,
-  ChevronDown,
-  Lock,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Lock, Sparkles } from "lucide-react";
 import {
   INCLUDED,
   PURCHASABLE_PLANS,
@@ -46,8 +40,8 @@ export function PricingTable({ signedIn }: { signedIn: boolean }) {
         {signedIn
           ? " You're signed in, so choosing one takes you straight to checkout."
           : " You'll create an account first, then confirm."}{" "}
-        Prices are in US dollars, the same in every country. Tax is worked out from your own
-        country at checkout.
+        Prices are in US dollars, the same in every country. Tax is worked out from your own country
+        at checkout.
       </p>
     </>
   );
@@ -99,9 +93,7 @@ function PlanCard({ plan, href }: { plan: PlatformPlan; href: string }) {
         </span>
       </div>
 
-      <p className="tabular mt-1 text-[32px] leading-none font-semibold">
-        {formatUsd(plan.price)}
-      </p>
+      <p className="tabular mt-1 text-[32px] leading-none font-semibold">{formatUsd(plan.price)}</p>
       <p className="mt-1.5 text-[12px] text-[var(--mk-fg-subtle)]">{plan.per}</p>
 
       <p className="mt-2 text-[12.5px] font-medium text-[var(--mk-fg-muted)]">

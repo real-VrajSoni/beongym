@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { FormError, FormField, FormGrid } from "@/components/ui/form-field";
 import { CurrencyField } from "@/components/ui/currency-field";
+import { BusinessTypeField } from "@/components/ui/business-type-field";
 import { suggestCurrency } from "@/lib/geo/currency";
 import { useAction } from "@/components/ui/use-action";
 import { ImageUpload } from "@/components/settings/image-upload";
@@ -146,6 +147,14 @@ export function ListGymForm({ listedCode }: { listedCode?: string | null }) {
               </FormField>
             </FormGrid>
 
+            <FormField
+              label="What kind of place is it?"
+              htmlFor="businessType"
+              error={fieldErrors.businessType}
+              hint="How you're described on the map. Everything else works the same."
+            >
+              <BusinessTypeField id="businessType" />
+            </FormField>
             <FormField
               label="What you charge members in"
               htmlFor="currency"

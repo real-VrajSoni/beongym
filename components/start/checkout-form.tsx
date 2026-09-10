@@ -8,6 +8,7 @@ import { previewPlanPriceAction, type PricePreview } from "@/app/actions/pricing
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyField } from "@/components/ui/currency-field";
+import { BusinessTypeField } from "@/components/ui/business-type-field";
 import { FormError, FormField } from "@/components/ui/form-field";
 import { useAction } from "@/components/ui/use-action";
 import { formatCurrency, formatUsd } from "@/lib/format";
@@ -136,6 +137,14 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
                 className="h-11"
                 required
               />
+            </FormField>
+            <FormField
+              label="What kind of place is it?"
+              htmlFor="businessType"
+              error={fieldErrors.businessType}
+              hint="Only changes how you're described on the public map."
+            >
+              <BusinessTypeField id="businessType" />
             </FormField>
             <FormField
               label="City"

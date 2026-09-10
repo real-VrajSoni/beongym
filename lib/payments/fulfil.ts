@@ -3,6 +3,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { extendAccess, planByKey, tierFor } from "@/lib/platform-plans";
 import { generateGymCode } from "@/lib/data/gym-code";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
+import { DEFAULT_BUSINESS_TYPE, type BusinessTypeKey } from "@/lib/business-types";
 import { paymentLog } from "./log";
 import type { Tx } from "./events";
 
@@ -87,6 +88,7 @@ export async function fulfilOrder(
         city: str(meta, "city") ?? order.city,
         country: str(meta, "country"),
         currency: str(meta, "currency") ?? "USD",
+        businessType: (str(meta, "businessType") ?? DEFAULT_BUSINESS_TYPE) as BusinessTypeKey,
         latitude: num(meta, "latitude"),
         longitude: num(meta, "longitude"),
         tagline: str(meta, "tagline"),
