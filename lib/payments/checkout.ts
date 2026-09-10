@@ -5,9 +5,35 @@ import { createSession, type Role } from "@/lib/auth";
 import { orderValue, planByKey, tierFor } from "@/lib/platform-plans";
 import type { OrderKind } from "@/lib/generated/prisma/enums";
 import { adaptiveCurrency, dodo, gatewayConfigured, productIdFor } from "./dodo";
-import { isKnownCurrency } from "@/lib/geo/currency";
+import { countryCodeFor, isKnownCurrency } from "@/lib/geo/currency";
 import { paymentLog } from "./log";
 import { fulfilOrder } from "./fulfil";
+
+/**
+ * The gateway parameters that make a local checkout actually work.
+ *
+ * A currency alone is not enough. Dodo decides which payment methods to offer
+ * from the *billing country*, so without one an Indian buyer is shown card
+ * fields and no UPI — and a card issued outside India cannot be charged on an
+ * INR rail, which surfaces as the unhelpful "Payment mode not enabled for this
+ * merchant" only after they have typed their card in.
+ *
+ * India gets its methods named explicitly because UPI is how most of the
+ * country pays; everywhere else Dodo's own defaults for the billing country are
+ * better than a list guessed from here.
+ */
+function localisation(currency: string | null | undefined, country: string | null | undefined) {
+  const code = countryCodeFor(country);
+  const wanted = currency && currency !== "USD" && isKnownCurrency(currency) ? currency : null;
+
+  const out: Record<string, unknown> = {};
+  if (code) out.billing_address = { country: code };
+  if (wanted && adaptiveCurrency()) out.billing_currency = wanted;
+  if (code === "IN" && wanted === "INR") {
+    out.allowed_payment_method_types = ["upi_collect", "credit", "debit"];
+  }
+  return out;
+}
 
 export type StartResult =
   | { ok: true; mode: "gateway"; checkoutUrl: string; orderId: string }
@@ -34,6 +60,8 @@ export async function startPurchase(input: {
   city: string | null;
   /** Set when the gym already exists — a claim or a renewal. */
   gymId?: string | null;
+  /** The gym's country, so the gateway offers the methods people there use. */
+  country?: string | null;
   /**
    * What the buyer would rather be charged in.
    *
@@ -102,16 +130,7 @@ export async function startPurchase(input: {
     const session = await dodo().checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
       customer: { email: input.email, name: input.name ?? "" },
-      // Only when the account is known to take it. Forcing a currency the
-      // merchant is not enabled for fails *after* the card is entered —
-      // "Payment mode not enabled for this merchant" — so the default is to
-      // let Dodo pick from what it actually supports.
-      ...(adaptiveCurrency() &&
-      input.billingCurrency &&
-      input.billingCurrency !== "USD" &&
-      isKnownCurrency(input.billingCurrency)
-        ? { billing_currency: input.billingCurrency as never }
-        : {}),
+      ...localisation(input.billingCurrency, input.country),
       metadata: {
         orderId: order.id,
         planKey: input.planKey,

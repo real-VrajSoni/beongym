@@ -73,6 +73,7 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
       // A gym that charges its members in rupees would rather pay us in rupees
       // too. Dodo converts at live rates; the plan still settles in dollars.
       billingCurrency: d.currency ?? suggestCurrency(d.city, place?.country),
+      country: place?.country ?? null,
       meta: {
         city: canonicalCity(d.city) ?? d.city ?? null,
         country: place?.country ?? null,

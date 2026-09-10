@@ -176,7 +176,11 @@ export default async function LandingPage() {
               Sign in
             </Link>
             <Link
-              href={signedIn ? "/start/plans" : "/signup"}
+              // Straight to the page with the Pay button. Somebody signed in
+              // with no gym has already chosen; sending them back to the plan
+              // list is a detour they have to walk twice. The checkout page
+              // still offers "Choose a different plan" for anyone who wants it.
+              href={signedIn ? "/start/checkout?plan=MONTHLY" : "/signup"}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand)] px-3.5 py-2 text-[13.5px] font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)]"
             >
               {signedIn ? "Finish setup" : "Get started"}
@@ -209,7 +213,11 @@ export default async function LandingPage() {
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
-              href={signedIn ? "/start/plans" : "/signup"}
+              // Straight to the page with the Pay button. Somebody signed in
+              // with no gym has already chosen; sending them back to the plan
+              // list is a detour they have to walk twice. The checkout page
+              // still offers "Choose a different plan" for anyone who wants it.
+              href={signedIn ? "/start/checkout?plan=MONTHLY" : "/signup"}
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-6 text-[15px] font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] sm:w-auto"
             >
               Start running your gym on it — ${ENTRY_PRICE} <ArrowRight className="size-4" />
@@ -417,7 +425,11 @@ export default async function LandingPage() {
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
-              href={signedIn ? "/start/plans" : "/signup"}
+              // Straight to the page with the Pay button. Somebody signed in
+              // with no gym has already chosen; sending them back to the plan
+              // list is a detour they have to walk twice. The checkout page
+              // still offers "Choose a different plan" for anyone who wants it.
+              href={signedIn ? "/start/checkout?plan=MONTHLY" : "/signup"}
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-6 text-[15px] font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] sm:w-auto"
             >
               Get started — ${ENTRY_PRICE} <ArrowRight className="size-4" />

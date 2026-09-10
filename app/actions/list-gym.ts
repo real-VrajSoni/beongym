@@ -114,6 +114,7 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
       city: canonicalCity(d.city) ?? d.city,
       returnPath: "/start/checkout/return",
       billingCurrency: d.currency ?? suggestCurrency(d.city, place?.country),
+      country: place?.country ?? null,
       meta: {
         city: canonicalCity(d.city) ?? d.city,
         country: place?.country ?? null,

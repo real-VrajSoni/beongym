@@ -147,7 +147,7 @@ export async function purchaseAccessAction(planKey: string): Promise<ActionResul
     // could grant themselves a year.
     const gym = await db.gym.findUniqueOrThrow({
       where: { id: session.gymId },
-      select: { name: true, city: true, currency: true },
+      select: { name: true, city: true, currency: true, country: true },
     });
 
     const result = await startPurchase({
@@ -160,6 +160,7 @@ export async function purchaseAccessAction(planKey: string): Promise<ActionResul
       gymName: gym.name,
       city: gym.city,
       billingCurrency: gym.currency,
+      country: gym.country,
       returnPath: "/gym/billing",
     });
 

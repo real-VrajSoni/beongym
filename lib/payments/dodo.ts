@@ -76,21 +76,22 @@ export function productIdFor(planKey: string): string | null {
 /**
  * Whether to ask the gateway to charge in the buyer's own currency.
  *
- * Off by default, and that default is the result of a live failure rather than
- * caution: forcing `billing_currency: INR` produced
+ * On, with an escape hatch. Forcing `billing_currency: INR` on its own produced
  *
  *   payment.failed — "Payment mode not enabled for this merchant."
  *
- * A merchant account can only take the currencies it has been enabled for, and
- * which those are is a setting in the Dodo dashboard that this code cannot see.
- * Guessing wrong does not fail politely at checkout creation — it fails after
- * the buyer has entered their card, which is the worst possible moment.
+ * The currency was not the whole story. Dodo chooses which payment methods to
+ * offer from the *billing country*, so a currency with no country attached left
+ * an Indian buyer being asked for a card on an INR rail their card cannot use.
+ * Sending the country — and naming UPI for India — is what makes the local
+ * currency payable rather than merely displayed.
  *
- * So the conversion is shown either way, and only *charged* when someone has
- * confirmed the account supports it. Turn on with DODO_ADAPTIVE_CURRENCY=1
- * once the currencies are enabled under Settings → Payment methods.
+ * Set DODO_ADAPTIVE_CURRENCY=0 to fall back to charging in dollars everywhere,
+ * which is the safe answer if a particular currency turns out not to be enabled
+ * on the account.
  */
 export function adaptiveCurrency(): boolean {
   const flag = process.env.DODO_ADAPTIVE_CURRENCY?.trim().toLowerCase();
-  return flag === "1" || flag === "true";
+  if (flag === "0" || flag === "false" || flag === "off") return false;
+  return true;
 }

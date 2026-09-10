@@ -1,4 +1,5 @@
 import { locate } from "./places";
+import { DIAL_CODES } from "./dial-codes";
 
 /**
  * What a gym charges in.
@@ -199,4 +200,22 @@ export function symbolFor(code: string): string {
     maximumFractionDigits: 0,
   }).formatToParts(0);
   return parts.find((p) => p.type === "currency")?.value ?? code;
+}
+
+/**
+ * ISO 3166-1 alpha-2 for a country name, for the gateway's billing address.
+ *
+ * Dodo picks which payment methods to show from the billing country: UPI only
+ * appears for `IN`, iDEAL only for `NL`, and so on. Sending the country is the
+ * difference between an Indian buyer seeing UPI and seeing nothing they
+ * recognise.
+ *
+ * Reuses the dialling-code table, which already pairs every country this
+ * product reaches with its ISO code.
+ */
+export function countryCodeFor(country: string | null | undefined): string | null {
+  if (!country) return null;
+  const name = country.trim().toLowerCase();
+  const hit = DIAL_CODES.find((c) => c.name.toLowerCase() === name);
+  return hit?.iso ?? null;
 }
