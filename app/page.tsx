@@ -15,7 +15,7 @@ import {
 import { getValidSession, homeFor } from "@/lib/auth";
 import { getLiveStatsAction } from "@/app/actions/stats";
 import { listGyms } from "@/lib/data/directory";
-import { BRAND } from "@/lib/brand";
+import { BRAND, SELLER } from "@/lib/brand";
 import { ENTRY_PRICE, planByKey } from "@/lib/platform-plans";
 import { Logo, LogoMark } from "@/components/brand/logo";
 import { PricingTable } from "@/components/marketing/pricing-table";
@@ -78,7 +78,11 @@ const PORTALS = [
     icon: ShieldCheck,
     name: "Your gym's data is yours",
     body: "No other gym on BeOnGym can see your members, your takings or your numbers — and the notes your coaches write stay inside your team.",
-    points: ["Walled off from other gyms", "Private staff notes", "Automated checks on every release"],
+    points: [
+      "Walled off from other gyms",
+      "Private staff notes",
+      "Automated checks on every release",
+    ],
   },
 ];
 
@@ -144,12 +148,24 @@ export default async function LandingPage() {
               appear, then the directory. The gaps tighten a step at a time as
               the row fills, so nothing wraps against the buttons on the right. */}
           <nav className="hidden items-center gap-4 text-[13.5px] whitespace-nowrap text-[var(--mk-fg-muted)] lg:flex xl:gap-6">
-            <a href="#what" className="hover:text-[var(--mk-fg)]">What it replaces</a>
-            <a href="#features" className="hover:text-[var(--mk-fg)]">Features</a>
-            <a href="#who" className="hover:text-[var(--mk-fg)]">Who it&rsquo;s for</a>
-            <a href="#how" className="hover:text-[var(--mk-fg)]">How it works</a>
-            <a href="#pricing" className="hover:text-[var(--mk-fg)]">Pricing</a>
-            <Link href="/gyms" className="hover:text-[var(--mk-fg)]">Find a gym</Link>
+            <a href="#what" className="hover:text-[var(--mk-fg)]">
+              What it replaces
+            </a>
+            <a href="#features" className="hover:text-[var(--mk-fg)]">
+              Features
+            </a>
+            <a href="#who" className="hover:text-[var(--mk-fg)]">
+              Who it&rsquo;s for
+            </a>
+            <a href="#how" className="hover:text-[var(--mk-fg)]">
+              How it works
+            </a>
+            <a href="#pricing" className="hover:text-[var(--mk-fg)]">
+              Pricing
+            </a>
+            <Link href="/gyms" className="hover:text-[var(--mk-fg)]">
+              Find a gym
+            </Link>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeSwitch />
@@ -196,8 +212,7 @@ export default async function LandingPage() {
               href={signedIn ? "/start/plans" : "/signup"}
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-6 text-[15px] font-medium text-[var(--brand-foreground)] hover:bg-[var(--brand-hover)] sm:w-auto"
             >
-              Start running your gym on it — ${ENTRY_PRICE}{" "}
-              <ArrowRight className="size-4" />
+              Start running your gym on it — ${ENTRY_PRICE} <ArrowRight className="size-4" />
             </Link>
             <a
               href="#what"
@@ -267,7 +282,6 @@ export default async function LandingPage() {
         </div>
       </section>
 
-
       {/* How it works */}
       <section id="how" className="scroll-mt-20 border-t border-[var(--mk-border)]">
         <div className="mx-auto max-w-6xl px-6 py-20">
@@ -280,7 +294,10 @@ export default async function LandingPage() {
 
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map(({ n, title, body, icon: Icon }) => (
-              <div key={n} className="rounded-2xl border border-[var(--mk-border-strong)] bg-[var(--mk-panel)] p-6">
+              <div
+                key={n}
+                className="rounded-2xl border border-[var(--mk-border-strong)] bg-[var(--mk-panel)] p-6"
+              >
                 <div className="flex items-center justify-between">
                   <span className="flex size-9 items-center justify-center rounded-xl border border-[var(--mk-border-strong)] bg-[var(--mk-panel-strong)] text-[var(--brand)]">
                     <Icon className="size-4" />
@@ -374,7 +391,10 @@ export default async function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="scroll-mt-20 border-t border-[var(--mk-border)] bg-[var(--mk-panel)]">
+      <section
+        id="faq"
+        className="scroll-mt-20 border-t border-[var(--mk-border)] bg-[var(--mk-panel)]"
+      >
         <div className="mx-auto max-w-3xl px-6 py-20">
           <h2 className="text-[32px] leading-tight font-semibold tracking-[-0.02em]">
             Frequently asked
@@ -392,8 +412,8 @@ export default async function LandingPage() {
             Put the register down.
           </h2>
           <p className="mx-auto mt-4 max-w-md text-[15px] text-[var(--mk-fg-muted)]">
-            ${ENTRY_PRICE} and an afternoon moves your members across. Tomorrow morning you open
-            one screen instead of four books.
+            ${ENTRY_PRICE} and an afternoon moves your members across. Tomorrow morning you open one
+            screen instead of four books.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
@@ -421,22 +441,63 @@ export default async function LandingPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-5">
-            <a href="#what" className="hover:text-[var(--mk-fg-muted)]">What it replaces</a>
-            <a href="#features" className="hover:text-[var(--mk-fg-muted)]">Features</a>
-            <a href="#who" className="hover:text-[var(--mk-fg-muted)]">Who it&rsquo;s for</a>
-            <a href="#how" className="hover:text-[var(--mk-fg-muted)]">How it works</a>
-            <a href="#pricing" className="hover:text-[var(--mk-fg-muted)]">Pricing</a>
-            <a href="#faq" className="hover:text-[var(--mk-fg-muted)]">FAQ</a>
-            <Link href="/gyms" className="hover:text-[var(--mk-fg-muted)]">Find a gym</Link>
-            <Link href="/list" className="hover:text-[var(--mk-fg-muted)]">List a gym</Link>
-            <Link href="/login" className="hover:text-[var(--mk-fg-muted)]">Sign in</Link>
+            <a href="#what" className="hover:text-[var(--mk-fg-muted)]">
+              What it replaces
+            </a>
+            <a href="#features" className="hover:text-[var(--mk-fg-muted)]">
+              Features
+            </a>
+            <a href="#who" className="hover:text-[var(--mk-fg-muted)]">
+              Who it&rsquo;s for
+            </a>
+            <a href="#how" className="hover:text-[var(--mk-fg-muted)]">
+              How it works
+            </a>
+            <a href="#pricing" className="hover:text-[var(--mk-fg-muted)]">
+              Pricing
+            </a>
+            <a href="#faq" className="hover:text-[var(--mk-fg-muted)]">
+              FAQ
+            </a>
+            <Link href="/gyms" className="hover:text-[var(--mk-fg-muted)]">
+              Find a gym
+            </Link>
+            <Link href="/list" className="hover:text-[var(--mk-fg-muted)]">
+              List a gym
+            </Link>
+            <Link href="/login" className="hover:text-[var(--mk-fg-muted)]">
+              Sign in
+            </Link>
+          </div>
+        </div>
+
+        {/* A policy nobody can find is not published. These sit on their own
+            row so they read as the legal footer rather than as more navigation,
+            and so a payment provider checking the site finds all four at once. */}
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--mk-border)] pt-5 text-[12.5px] text-[var(--mk-fg-subtle)]">
+            <Link href="/terms" className="hover:text-[var(--mk-fg-muted)]">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="hover:text-[var(--mk-fg-muted)]">
+              Privacy Policy
+            </Link>
+            <Link href="/refunds" className="hover:text-[var(--mk-fg-muted)]">
+              Refunds &amp; Cancellation
+            </Link>
+            <Link href="/contact" className="hover:text-[var(--mk-fg-muted)]">
+              Contact
+            </Link>
+            <span className="ml-auto">
+              Operated by {SELLER.entity}, {SELLER.describedAs}, in {SELLER.country}.
+            </span>
           </div>
         </div>
         <div className="mx-auto max-w-6xl px-6 pb-8">
           <p className="flex items-start gap-1.5 text-[11.5px] text-[var(--mk-fg-subtle)]">
             <Lock className="mt-0.5 size-3 shrink-0" />
-            Two things are not connected yet, and we would rather say so here than let you find
-            out later: online card payments (Dodo) — plans activate on confirmation and no card is
+            Two things are not connected yet, and we would rather say so here than let you find out
+            later: online card payments (Dodo) — plans activate on confirmation and no card is
             charged — and automatic WhatsApp sending, which today writes the message for you and
             leaves you to press send.
           </p>

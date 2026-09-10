@@ -59,8 +59,13 @@ const PUBLIC_ROUTES: [string, string][] = [
   ["/claim", "Claim your gym"],
   ["/list", "Put your gym on the map"],
   ["/gyms/COAST-5521/claim", "Coastline CrossFit"],
+  // The four a payment provider checks for before granting live access. They
+  // must be reachable without signing in, which is the whole point of them.
+  ["/terms", "Terms of Service"],
+  ["/privacy", "Privacy Policy"],
+  ["/refunds", "Refund and Cancellation Policy"],
+  ["/contact", "support@beongym.com"],
 ];
-
 
 async function main() {
   const db = new PrismaClient({
@@ -78,18 +83,38 @@ async function main() {
     where: { gymId: gym.id, user: { email: "rahul.sharma@example.com" } },
     include: { user: true },
   });
-  const firstPlan = await db.plan.findFirstOrThrow({ where: { gymId: gym.id }, select: { id: true } });
+  const firstPlan = await db.plan.findFirstOrThrow({
+    where: { gymId: gym.id },
+    select: { id: true },
+  });
 
   const sign = (p: Record<string, unknown>) =>
-    new SignJWT(p).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(key);
+    new SignJWT(p)
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("1h")
+      .sign(key);
 
   const adminToken = await sign({
-    userId: admin.id, email: admin.email, name: admin.name,
-    role: "SUPER_ADMIN", profileId: null, gymId: null, gymName: null, gymCode: null, gymTier: null,
+    userId: admin.id,
+    email: admin.email,
+    name: admin.name,
+    role: "SUPER_ADMIN",
+    profileId: null,
+    gymId: null,
+    gymName: null,
+    gymCode: null,
+    gymTier: null,
   });
   const staffToken = await sign({
-    userId: staff.id, email: staff.email, name: staff.name, role: "GYM_OWNER",
-    profileId: staff.trainerProfile!.id, gymId: gym.id, gymName: gym.name, gymCode: gym.code,
+    userId: staff.id,
+    email: staff.email,
+    name: staff.name,
+    role: "GYM_OWNER",
+    profileId: staff.trainerProfile!.id,
+    gymId: gym.id,
+    gymName: gym.name,
+    gymCode: gym.code,
     gymTier: gym.tier,
     // Without this the proxy reads the session as lapsed and bounces every
     // paid route to /gym/renew — the check would be testing the paywall, not
@@ -97,9 +122,16 @@ async function main() {
     gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
   });
   const memberToken = await sign({
-    userId: member.user.id, email: member.user.email, name: member.user.name, role: "MEMBER",
-    profileId: member.id, gymId: gym.id, gymName: gym.name, gymCode: gym.code,
-    gymTier: gym.tier, gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
+    userId: member.user.id,
+    email: member.user.email,
+    name: member.user.name,
+    role: "MEMBER",
+    profileId: member.id,
+    gymId: gym.id,
+    gymName: gym.name,
+    gymCode: gym.code,
+    gymTier: gym.tier,
+    gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
   });
   const routes: [string, string, string][] = [
     ...ADMIN_ROUTES.map(([r, expect]) => [r, adminToken, expect] as [string, string, string]),
