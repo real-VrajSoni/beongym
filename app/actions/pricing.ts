@@ -2,7 +2,7 @@
 
 import { dodo, gatewayConfigured, productIdFor } from "@/lib/payments/dodo";
 import { isKnownCurrency } from "@/lib/geo/currency";
-import { orderValue } from "@/lib/platform-plans";
+import { getSession } from "@/lib/auth";
 
 /**
  * What a plan costs in the buyer's own money.
@@ -16,9 +16,14 @@ import { orderValue } from "@/lib/platform-plans";
  * different number from the one on the card statement, which is worse than not
  * showing one at all.
  *
- * Public on purpose — it exposes a price list, which is already public — and it
- * returns null rather than throwing on anything it cannot answer, because a
- * missing second opinion on a price must never block a checkout.
+ * Behind a session, though the price list itself is public. Not because the
+ * number is a secret — it is on the pricing page — but because this reaches the
+ * payment gateway on every call, and an endpoint anyone can hammer is an
+ * endpoint that spends our API quota for them. Everybody who reaches the
+ * checkout form already has a session, so the guard costs nothing real.
+ *
+ * Returns null rather than throwing on anything it cannot answer: a missing
+ * second opinion on a price must never block a checkout.
  */
 export type PricePreview = { amount: number; currency: string } | null;
 
@@ -26,6 +31,9 @@ export async function previewPlanPriceAction(
   planKey: string,
   currency: string,
 ): Promise<PricePreview> {
+  const session = await getSession();
+  if (!session) return null;
+
   const key = planKey === "ANNUAL" ? "ANNUAL" : "MONTHLY";
   const code = currency.trim().toUpperCase();
 
@@ -50,9 +58,4 @@ export async function previewPlanPriceAction(
     // A currency Dodo will not quote, or a hiccup. The dollar price stands.
     return null;
   }
-}
-
-/** The dollar price, for the caller that wants both halves. */
-export async function planPriceUsdAction(planKey: string): Promise<number> {
-  return orderValue(planKey === "ANNUAL" ? "ANNUAL" : "MONTHLY");
 }

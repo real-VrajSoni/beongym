@@ -13,7 +13,13 @@ import { SESSION_COOKIE } from "@/lib/session";
  * force a visitor to be signed out with an <img src="/logout">.
  */
 function clear(request: NextRequest) {
-  const response = NextResponse.redirect(new URL("/login", request.url));
+  // Home, not the sign-in page.
+  //
+  // Landing on /login left people in a loop: the workspace is still behind them
+  // in history, so pressing Back reached a protected page, the proxy turned
+  // them away, and they arrived at /login again. Back appeared to do nothing.
+  // Signing out means leaving, and the place you leave to is the front page.
+  const response = NextResponse.redirect(new URL("/", request.url));
   response.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
   // The sign-out itself must never be cached either, or Back can replay the
   // page that was on screen before it.

@@ -116,5 +116,7 @@ export async function memberLoginAction(
 
 export async function logoutAction() {
   await destroySession();
-  redirect("/login");
+  // Home, for the same reason as /logout: signing out means leaving, and
+  // landing on the sign-in page put people in a loop where Back did nothing.
+  redirect("/");
 }

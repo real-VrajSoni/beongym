@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { LogOut, Moon, Sun } from "lucide-react";
 import {
   Dropdown,
@@ -49,11 +48,27 @@ function MenuItems({ user }: { user: MenuUser }) {
 
       <DropdownSeparator />
 
+      {/* `replace`, not a link.
+          A link pushes, which leaves the workspace sitting in history: press
+          Back afterwards and the browser asks for a page you are no longer
+          allowed to see. The proxy turns that away, so nothing leaks — but the
+          visitor lands on the sign-in screen having asked for nothing, which
+          reads as Back being broken. Replacing drops the workspace out of the
+          stack, so Back goes to whatever came before it.
+
+          It stays an anchor underneath so middle-click, and a browser with no
+          JavaScript, still sign out. */}
       <DropdownItem destructive asChild>
-        <Link href="/logout" prefetch={false}>
+        <a
+          href="/logout"
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.replace("/logout");
+          }}
+        >
           <LogOut />
           <span className="text-[13px]">Sign out</span>
-        </Link>
+        </a>
       </DropdownItem>
     </DropdownContent>
   );
