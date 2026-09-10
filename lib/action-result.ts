@@ -1,7 +1,25 @@
 import { z } from "zod";
 
 export type ActionResult =
-  | { ok: true; message?: string; id?: string }
+  | {
+      ok: true;
+      message?: string;
+      /** The row an action created, for a caller that wants to navigate to it. */
+      id?: string;
+      /**
+       * Where the browser must go to pay.
+       *
+       * Its own field, and named for exactly what it is, because twice now a
+       * checkout URL has been smuggled through a field meant for something
+       * else — once as `id`, once as a listing's `code` — and both times the
+       * caller did the wrong thing with it silently. A form that renders a
+       * Dodo URL as a gym code looks like success and is not.
+       *
+       * Set only when a real gateway is configured. When it is present the
+       * caller has one job: leave.
+       */
+      checkoutUrl?: string;
+    }
   | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
 export function fieldErrorsOf(error: z.ZodError): Record<string, string> {

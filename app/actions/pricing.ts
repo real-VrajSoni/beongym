@@ -1,6 +1,6 @@
 "use server";
 
-import { dodo, gatewayConfigured, productIdFor } from "@/lib/payments/dodo";
+import { adaptiveCurrency, dodo, gatewayConfigured, productIdFor } from "@/lib/payments/dodo";
 import { isKnownCurrency } from "@/lib/geo/currency";
 import { getSession } from "@/lib/auth";
 
@@ -25,7 +25,18 @@ import { getSession } from "@/lib/auth";
  * Returns null rather than throwing on anything it cannot answer: a missing
  * second opinion on a price must never block a checkout.
  */
-export type PricePreview = { amount: number; currency: string } | null;
+export type PricePreview = {
+  amount: number;
+  currency: string;
+  /**
+   * True when this is what the card will actually be charged.
+   *
+   * False means it is an estimate only: the gateway will take dollars, because
+   * the merchant account is not enabled for this currency. The page must say
+   * which, or it promises something the checkout will not honour.
+   */
+  charged: boolean;
+} | null;
 
 export async function previewPlanPriceAction(
   planKey: string,
@@ -53,7 +64,7 @@ export async function previewPlanPriceAction(
     const minor = breakup?.total_amount;
     if (typeof minor !== "number" || !Number.isFinite(minor)) return null;
     // Dodo works in the smallest unit; the app formats whole currency.
-    return { amount: minor / 100, currency: code };
+    return { amount: minor / 100, currency: code, charged: adaptiveCurrency() };
   } catch {
     // A currency Dodo will not quote, or a hiccup. The dollar price stands.
     return null;

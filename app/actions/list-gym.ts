@@ -134,7 +134,11 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
 
     if (!result.ok) return { ok: false as const, error: result.error };
     if (result.mode === "gateway") {
-      return { ok: true as const, message: "Redirecting to payment…", code: result.checkoutUrl };
+      return {
+        ok: true as const,
+        message: "Redirecting to payment…",
+        checkoutUrl: result.checkoutUrl,
+      };
     }
 
     const created = await db.platformOrder.findUnique({

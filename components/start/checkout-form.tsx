@@ -71,13 +71,13 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
    * for the amount anybody is asked to approve.
    */
   const rate = localPrice ? localPrice.amount / amount : null;
-  const paying = localPrice
-    ? formatCurrency(localPrice.amount, localPrice.currency)
-    : formatUsd(amount);
+  // The headline is only in local money when local money is what gets charged.
+  // Otherwise it stays in dollars and the conversion is an aside, because a
+  // price shown as the amount due has to be the amount due.
+  const lead = localPrice?.charged ? localPrice : null;
+  const paying = lead ? formatCurrency(lead.amount, lead.currency) : formatUsd(amount);
   const wasPaying =
-    localPrice && rate
-      ? formatCurrency(plan.listPrice * rate, localPrice.currency)
-      : formatUsd(plan.listPrice);
+    lead && rate ? formatCurrency(plan.listPrice * rate, lead.currency) : formatUsd(plan.listPrice);
 
   const previewCode =
     (gymName
@@ -94,11 +94,11 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
           onSuccess: (result) => {
             // The action grants nothing now; it returns where to pay. Without
             // this the button ran, succeeded, and visibly did nothing.
-            if (result.id?.startsWith("http")) {
-              window.location.href = result.id;
+            if (result.checkoutUrl) {
+              window.location.href = result.checkoutUrl;
               return;
             }
-            // Simulated mode (no gateway configured) provisions directly.
+            // Simulated mode (no gateway) provisioned already; `id` is a path.
             if (result.id) window.location.href = result.id;
           },
         })
@@ -213,11 +213,14 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
             <div className="text-right">
               <p className="tabular text-[18px] font-semibold">{paying}</p>
               <p className="tabular text-[12px] text-muted-foreground line-through">{wasPaying}</p>
-              {localPrice ? (
-                // The plan is priced and settles in dollars; this is what the
-                // card is charged. Saying both is the only honest version.
+              {lead ? (
+                // Priced and settled in dollars; converted for the statement.
                 <p className="tabular mt-0.5 text-[11.5px] text-[var(--subtle-foreground)]">
                   {formatUsd(amount)} billed
+                </p>
+              ) : localPrice ? (
+                <p className="tabular mt-0.5 text-[11.5px] text-[var(--subtle-foreground)]">
+                  ≈ {formatCurrency(localPrice.amount, localPrice.currency)}
                 </p>
               ) : null}
             </div>
@@ -242,10 +245,15 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
             <CreditCard /> Pay {paying}
           </Button>
 
-          {localPrice ? (
+          {lead ? (
             <p className="mt-2 text-center text-[12px] text-muted-foreground">
               Converted by Dodo at today&rsquo;s rate. The plan is priced in dollars, so the exact
               amount can move a little by the time you pay.
+            </p>
+          ) : localPrice ? (
+            <p className="mt-2 text-center text-[12px] text-muted-foreground">
+              Charged in US dollars — roughly{" "}
+              {formatCurrency(localPrice.amount, localPrice.currency)} at today&rsquo;s rate.
             </p>
           ) : null}
 

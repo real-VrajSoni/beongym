@@ -185,7 +185,7 @@ export async function purchaseAccessAction(planKey: string): Promise<ActionResul
     }
 
     // The browser goes to the gateway. Access is still exactly what it was.
-    return { ok: true, message: "Redirecting to payment…", id: result.checkoutUrl };
+    return { ok: true, message: "Redirecting to payment…", checkoutUrl: result.checkoutUrl };
   });
 }
 

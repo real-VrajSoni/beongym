@@ -59,7 +59,11 @@ export async function claimGymAction(formData: FormData): Promise<ActionResult> 
 
     if (!result.ok) return { ok: false as const, error: result.error };
     if (result.mode === "gateway") {
-      return { ok: true as const, message: "Redirecting to payment…", id: result.checkoutUrl };
+      return {
+        ok: true as const,
+        message: "Redirecting to payment…",
+        checkoutUrl: result.checkoutUrl,
+      };
     }
     await reissueFor(session.userId);
     return { ok: true as const, message: `${gym.name} is yours.`, id: "/gym/settings?claimed=1" };

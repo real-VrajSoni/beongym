@@ -32,7 +32,14 @@ const POINTS = [
   },
 ];
 
-export default async function ListGymPage() {
+export default async function ListGymPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ listed?: string }>;
+}) {
+  // Set by the payment return page once a listing's gym exists, so the form
+  // reopens on its last step instead of asking for the whole thing again.
+  const { listed } = await searchParams;
   const stats = await getLiveStatsAction();
 
   return (
@@ -54,7 +61,10 @@ export default async function ListGymPage() {
         </div>
       </header>
 
-      <section className="border-b border-[var(--mk-border)]" style={{ background: "var(--mk-hero)" }}>
+      <section
+        className="border-b border-[var(--mk-border)]"
+        style={{ background: "var(--mk-hero)" }}
+      >
         <div className="mx-auto max-w-6xl px-6 py-14">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-[var(--brand)]/30 bg-[var(--brand)]/10 px-2.5 py-1 text-[11.5px] font-medium text-[var(--brand)]">
             <Sparkles className="size-3" /> ${ENTRY_PRICE} a month, or ${planByKey("ANNUAL").price}{" "}
@@ -83,7 +93,7 @@ export default async function ListGymPage() {
       </section>
 
       <main className="mx-auto max-w-3xl px-6 py-12">
-        <ListGymForm />
+        <ListGymForm listedCode={listed ?? null} />
 
         <p className="mt-10 border-t border-[var(--mk-border)] pt-6 text-[13px] leading-relaxed text-[var(--mk-fg-subtle)]">
           Paying opens{" "}

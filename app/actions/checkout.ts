@@ -84,7 +84,7 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
 
     if (!result.ok) return { ok: false, error: result.error };
     if (result.mode === "gateway") {
-      return { ok: true, message: "Redirecting to payment…", id: result.checkoutUrl };
+      return { ok: true, message: "Redirecting to payment…", checkoutUrl: result.checkoutUrl };
     }
     // Simulated: the gym really was created, so the session must be reissued —
     // this account was a PROSPECT a moment ago and is now an owner.

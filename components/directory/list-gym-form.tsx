@@ -41,10 +41,13 @@ type Step = "choose" | "gym" | "pay" | "done";
  * There is no unpaid path through here. Every gym on the map has bought a
  * window of access, so the first screen is which window, not whether.
  */
-export function ListGymForm() {
+export function ListGymForm({ listedCode }: { listedCode?: string | null }) {
   const router = useRouter();
   const { pending, error, fieldErrors, run } = useAction();
-  const [step, setStep] = useState<Step>("choose");
+  // A listing that has just been paid for comes back from the gateway with its
+  // gym code in the URL, so the wizard opens on its last step rather than
+  // asking somebody to fill the whole form again for a gym that now exists.
+  const [step, setStep] = useState<Step>(listedCode ? "done" : "choose");
   const [planKey, setPlanKey] = useState<PlanKey>("MONTHLY");
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
@@ -59,7 +62,7 @@ export function ListGymForm() {
     setLastSuggestion(suggestedCurrency);
     if (!touchedCurrency) setCurrency(suggestedCurrency);
   }
-  const [code, setCode] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(listedCode ?? null);
 
   const ready = name.trim().length >= 2 && city.trim().length >= 2;
   const plan = planByKey(planKey);
@@ -84,11 +87,20 @@ export function ListGymForm() {
             run(
               async () => {
                 const result = await listGymAction(fd);
-                if (result.ok && result.code) setCode(result.code);
+                // Only a real gym code advances the wizard. This used to accept
+                // whatever came back in `code`, which — once the gateway went
+                // in — was a checkout URL, so the page announced "you're on the
+                // map" and printed a Dodo link as the gym code. Nothing had
+                // been paid for and no gym existed.
+                if (result.ok && !result.checkoutUrl && result.code) setCode(result.code);
                 return result;
               },
               {
-                onSuccess: () => {
+                onSuccess: (result) => {
+                  if (result.checkoutUrl) {
+                    window.location.href = result.checkoutUrl;
+                    return;
+                  }
                   setStep("done");
                   router.refresh();
                 },

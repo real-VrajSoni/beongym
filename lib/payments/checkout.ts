@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { createSession, type Role } from "@/lib/auth";
 import { orderValue, planByKey, tierFor } from "@/lib/platform-plans";
 import type { OrderKind } from "@/lib/generated/prisma/enums";
-import { dodo, gatewayConfigured, productIdFor } from "./dodo";
+import { adaptiveCurrency, dodo, gatewayConfigured, productIdFor } from "./dodo";
 import { isKnownCurrency } from "@/lib/geo/currency";
 import { paymentLog } from "./log";
 import { fulfilOrder } from "./fulfil";
@@ -102,11 +102,12 @@ export async function startPurchase(input: {
     const session = await dodo().checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
       customer: { email: input.email, name: input.name ?? "" },
-      // Charge in the buyer's own money where Dodo can. The plan is priced and
-      // settles in dollars; this changes what the card statement says, which is
-      // the difference between a gym in Mumbai recognising the amount and
-      // having to work it out.
-      ...(input.billingCurrency &&
+      // Only when the account is known to take it. Forcing a currency the
+      // merchant is not enabled for fails *after* the card is entered —
+      // "Payment mode not enabled for this merchant" — so the default is to
+      // let Dodo pick from what it actually supports.
+      ...(adaptiveCurrency() &&
+      input.billingCurrency &&
       input.billingCurrency !== "USD" &&
       isKnownCurrency(input.billingCurrency)
         ? { billing_currency: input.billingCurrency as never }
