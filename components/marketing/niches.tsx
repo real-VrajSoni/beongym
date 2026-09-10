@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { MarketingPhoto } from "./photo";
 
 /**
  * Who this is for.
@@ -102,14 +103,14 @@ export function Niches() {
               key={title}
               className="group overflow-hidden rounded-3xl border border-[var(--mk-border-strong)] bg-[var(--mk-panel)] transition-transform duration-300 hover:-translate-y-1"
             >
-              {/* The photograph sits over painted artwork rather than in an
-                  <img>: a file that has not been dropped in yet leaves the
-                  gradient behind it, not a broken-image icon. */}
+              {/* The photograph sits over painted artwork: a file that has not
+                  been dropped in yet leaves the gradient behind it rather than
+                  a broken-image icon. */}
               <div className="relative h-48 overflow-hidden" style={{ background: art }}>
-                <div
-                  aria-hidden
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-[1.04]"
-                  style={{ backgroundImage: `url(${image})` }}
+                <MarketingPhoto
+                  src={image}
+                  alt={title}
+                  className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                 />
                 <div
                   aria-hidden

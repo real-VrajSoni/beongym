@@ -1,9 +1,30 @@
 import type { NextConfig } from "next";
 
 /** Everything behind a sign-in. Nothing here may sit in a browser cache. */
-const PRIVATE_ROUTES = ["/gym/:path*", "/admin/:path*", "/me/:path*", "/start/:path*", "/checkin/:path*"];
+const PRIVATE_ROUTES = [
+  "/gym/:path*",
+  "/admin/:path*",
+  "/me/:path*",
+  "/start/:path*",
+  "/checkin/:path*",
+];
 
 const nextConfig: NextConfig = {
+  images: {
+    /**
+     * AVIF first, WebP behind it.
+     *
+     * A marketing photograph shot at 2400px and saved as a JPEG is comfortably
+     * the largest thing on the homepage. AVIF typically lands under half the
+     * bytes of the same JPEG at a quality nobody can tell apart, and any
+     * browser that cannot read it falls back to WebP without being asked.
+     */
+    formats: ["image/avif", "image/webp"],
+    /** The widths the cards actually render at, so no larger file is generated. */
+    deviceSizes: [640, 828, 1080, 1200, 1920],
+    imageSizes: [256, 384, 512],
+  },
+
   // The floating dev badge overlaps the sidebar's account menu in this layout,
   // so it is switched off. It never appears in production builds anyway.
   devIndicators: false,
