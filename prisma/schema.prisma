@@ -245,7 +245,7 @@ model Gym {
   /// gym is created and editable in settings, because a gym near a border may
   /// well quote the other side's money. Separate from what the gym pays *us*,
   /// which is dollars everywhere — see lib/platform-plans.ts.
-  currency     String   @default("INR")
+  currency     String   @default("USD")
   /// Public profile views. Social proof on the directory, not analytics.
   viewCount    Int          @default(0) @map("view_count")
   /// False for gyms seeded from public data that no owner has taken over yet —
@@ -396,7 +396,7 @@ model Plan {
   planType        PlanType        @map("plan_type")
   durationDays    Int             @map("duration_days")
   price           Decimal         @db.Decimal(12, 2)
-  currency        String          @default("INR")
+  currency        String          @default("USD")
   billingInterval BillingInterval @map("billing_interval")
   /// Public price visibility. Off by default: a gym's rates are its own
   /// business until the owner decides to publish them on the store.
@@ -432,7 +432,7 @@ model Subscription {
   /// the ordinary discount honest: a joining offer or a friend's rate is a
   /// number on the membership, not a second plan created to hold it.
   price     Decimal            @db.Decimal(12, 2)
-  currency  String             @default("INR")
+  currency  String             @default("USD")
   createdAt DateTime           @default(now()) @map("created_at")
 
   // Restrict: historical subscription rows must survive client/plan cleanup.
@@ -450,7 +450,7 @@ model Payment {
   id             String        @id @default(cuid())
   subscriptionId String        @map("subscription_id")
   amount         Decimal       @db.Decimal(12, 2)
-  currency       String        @default("INR")
+  currency       String        @default("USD")
   paymentDate    DateTime      @map("payment_date")
   paymentMethod  PaymentMethod @map("payment_method")
   transactionId  String?       @unique @map("transaction_id")

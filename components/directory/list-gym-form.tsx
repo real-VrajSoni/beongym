@@ -8,6 +8,8 @@ import { attachOwnerAction, listGymAction } from "@/app/actions/list-gym";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { FormError, FormField, FormGrid } from "@/components/ui/form-field";
+import { CurrencyField } from "@/components/ui/currency-field";
+import { suggestCurrency } from "@/lib/geo/currency";
 import { useAction } from "@/components/ui/use-action";
 import { ImageUpload } from "@/components/settings/image-upload";
 import { MapPicker } from "@/components/directory/map-picker";
@@ -47,6 +49,16 @@ export function ListGymForm() {
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [accent, setAccent] = useState(SWATCHES[0]);
+
+  // Seeded from the city, overridable by the owner — see checkout-form.tsx.
+  const [currency, setCurrency] = useState(suggestCurrency());
+  const [touchedCurrency, setTouchedCurrency] = useState(false);
+  const suggestedCurrency = suggestCurrency(city);
+  const [lastSuggestion, setLastSuggestion] = useState(suggestedCurrency);
+  if (suggestedCurrency !== lastSuggestion) {
+    setLastSuggestion(suggestedCurrency);
+    if (!touchedCurrency) setCurrency(suggestedCurrency);
+  }
   const [code, setCode] = useState<string | null>(null);
 
   const ready = name.trim().length >= 2 && city.trim().length >= 2;
@@ -122,6 +134,27 @@ export function ListGymForm() {
               </FormField>
             </FormGrid>
 
+            <FormField
+              label="What you charge members in"
+              htmlFor="currency"
+              required
+              error={fieldErrors.currency}
+              hint={
+                touchedCurrency || currency === suggestedCurrency
+                  ? "Every price in your workspace is shown in this. Changeable in settings."
+                  : `We guessed ${suggestedCurrency} from your city — change it if that is wrong.`
+              }
+            >
+              <CurrencyField
+                id="currency"
+                value={currency}
+                onChange={(next) => {
+                  setTouchedCurrency(true);
+                  setCurrency(next);
+                }}
+              />
+            </FormField>
+
             <FormField label="One line about the gym" htmlFor="tagline" error={fieldErrors.tagline}>
               <Input
                 id="tagline"
@@ -133,7 +166,12 @@ export function ListGymForm() {
 
             <FormGrid>
               <FormField label="Phone" htmlFor="phone" required error={fieldErrors.phone}>
-                <PhoneField id="phone" name="phone" required className="[&_input]:h-11 [&_button]:h-11" />
+                <PhoneField
+                  id="phone"
+                  name="phone"
+                  required
+                  className="[&_input]:h-11 [&_button]:h-11"
+                />
               </FormField>
               <FormField
                 label="Email"
@@ -180,7 +218,11 @@ export function ListGymForm() {
                   className="h-11"
                 />
               </FormField>
-              <FormField label="Opening hours" htmlFor="openingHours" error={fieldErrors.openingHours}>
+              <FormField
+                label="Opening hours"
+                htmlFor="openingHours"
+                error={fieldErrors.openingHours}
+              >
                 <Input
                   id="openingHours"
                   name="openingHours"
@@ -437,12 +479,10 @@ function Done({ code, name }: { code: string; name: string }) {
 
       {attached ? (
         <div className="mt-5 rounded-2xl border border-[var(--brand)]/30 bg-[var(--brand)]/[0.06] p-5">
-          <p className="text-[14px] font-medium">
-            Now set up your store — about three minutes.
-          </p>
+          <p className="text-[14px] font-medium">Now set up your store — about three minutes.</p>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Add your logo, a line about the gym, your photos, your programmes and the links your
-            pin sends people to. Prices stay hidden until you publish them.
+            Add your logo, a line about the gym, your photos, your programmes and the links your pin
+            sends people to. Prices stay hidden until you publish them.
           </p>
           <Link
             href="/gym/settings"
@@ -457,9 +497,7 @@ function Done({ code, name }: { code: string; name: string }) {
           className="mt-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5"
         >
           <input type="hidden" name="code" value={code} />
-          <p className="text-[14px] font-medium">
-            One more step — your login
-          </p>
+          <p className="text-[14px] font-medium">One more step — your login</p>
           <p className="mt-1 mb-4 text-[13px] text-muted-foreground">
             You&rsquo;ve paid for a store; you need a login to build it. Set a password and
             you&rsquo;ll land straight in the setup.

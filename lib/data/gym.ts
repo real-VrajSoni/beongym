@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { num } from "./serialize";
 import { fromDateOnly } from "@/lib/format";
 import { differenceInCalendarDays, endOfDay, startOfDay, startOfMonth, subMonths } from "date-fns";
+import { DEFAULT_CURRENCY } from "@/lib/geo/currency";
 
 const LIVE_STATUSES = ["ACTIVE", "TRIAL"] as const;
 
@@ -346,5 +347,5 @@ export async function getFollowUpQueue(gymId: string) {
  */
 export async function getGymCurrency(gymId: string): Promise<string> {
   const gym = await db.gym.findUnique({ where: { id: gymId }, select: { currency: true } });
-  return gym?.currency ?? "INR";
+  return gym?.currency ?? DEFAULT_CURRENCY;
 }

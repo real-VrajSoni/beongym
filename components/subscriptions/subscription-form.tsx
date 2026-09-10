@@ -12,7 +12,7 @@ import { FormError, FormField, FormGrid } from "@/components/ui/form-field";
 import { Modal, ModalBody, ModalContent, ModalFooter } from "@/components/ui/modal";
 import { useAction } from "@/components/ui/use-action";
 import { formatCurrency } from "@/lib/format";
-import { symbolFor } from "@/lib/geo/currency";
+import { symbolFor, DEFAULT_CURRENCY } from "@/lib/geo/currency";
 import { SUBSCRIPTION_STATUS_LABELS } from "@/lib/labels";
 
 export type SubscriptionFormOptions = {
@@ -26,7 +26,7 @@ export function NewSubscriptionButton({ clients, plans }: SubscriptionFormOption
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const { pending, error, fieldErrors, run, reset } = useAction();
   const plan = plans.find((p) => p.id === planId);
-  const currency = plan?.currency ?? plans[0]?.currency ?? "INR";
+  const currency = plan?.currency ?? plans[0]?.currency ?? DEFAULT_CURRENCY;
 
   // Seeded from the plan, then the desk's to change — see client-form.tsx.
   const [price, setPrice] = useState(String(plans[0]?.price ?? 0));

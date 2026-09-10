@@ -34,6 +34,7 @@ export default async function SettingsPage({
         logoText: true,
         imageUrl: true,
         accentColor: true,
+        currency: true,
         latitude: true,
         longitude: true,
         description: true,
@@ -122,6 +123,7 @@ export default async function SettingsPage({
               phone: gym.phone ?? "",
               email: gym.email ?? "",
               logoText: gym.logoText ?? "",
+              currency: gym.currency,
               accentColor: gym.accentColor,
             }}
           />

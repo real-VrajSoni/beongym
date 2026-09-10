@@ -10,6 +10,7 @@ import { useAction } from "@/components/ui/use-action";
 import { ImageUpload } from "./image-upload";
 import { MapPicker } from "@/components/directory/map-picker";
 import { CITY_OPTIONS } from "@/lib/geo/places";
+import { CurrencyField } from "@/components/ui/currency-field";
 import { cn } from "@/lib/utils";
 
 export type GymProfileValues = {
@@ -24,6 +25,8 @@ export type GymProfileValues = {
   email: string;
   logoText: string;
   accentColor: string;
+  /** What this gym charges its members in. Every price in the app follows it. */
+  currency: string;
 };
 
 const SWATCHES = [
@@ -164,6 +167,18 @@ export function GymProfileForm({
                   <option key={c} value={c.split(",")[0]} label={c} />
                 ))}
               </datalist>
+            </FormField>
+            <FormField
+              label="What you charge members in"
+              htmlFor="gym-currency"
+              error={fieldErrors.currency}
+              hint="Every price in your workspace. Changing it relabels them, it does not convert them."
+            >
+              <CurrencyField
+                id="gym-currency"
+                defaultValue={values.currency}
+                disabled={!canEdit}
+              />
             </FormField>
             <FormField label="Phone" htmlFor="gym-phone" error={fieldErrors.phone}>
               <Input id="gym-phone" name="phone" defaultValue={values.phone} />

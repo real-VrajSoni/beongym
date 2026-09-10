@@ -12,7 +12,7 @@ import { FormError, FormField, FormGrid } from "@/components/ui/form-field";
 import { Modal, ModalBody, ModalContent, ModalFooter } from "@/components/ui/modal";
 import { useAction } from "@/components/ui/use-action";
 import { formatCurrency } from "@/lib/format";
-import { symbolFor } from "@/lib/geo/currency";
+import { symbolFor, DEFAULT_CURRENCY } from "@/lib/geo/currency";
 import { GENDER_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels";
 
 export type PlanOption = {
@@ -59,7 +59,7 @@ export function ClientFormDialog({
   const [recordPayment, setRecordPayment] = useState(true);
   const isEdit = Boolean(client);
   const selectedPlan = plans.find((p) => p.id === planId);
-  const currency = selectedPlan?.currency ?? plans[0]?.currency ?? "INR";
+  const currency = selectedPlan?.currency ?? plans[0]?.currency ?? DEFAULT_CURRENCY;
 
   // What they are actually being charged. Seeded from the plan and then left
   // alone — a joining offer or a friend's rate is typed over the top, and the

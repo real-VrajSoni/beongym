@@ -9,7 +9,7 @@ import { generateGymCode } from "@/lib/data/gym-code";
 import { extendAccess, orderValue, planByKey, PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
-import { currencyForCountry } from "@/lib/geo/currency";
+import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
 
 const checkoutSchema = z.object({
@@ -23,6 +23,19 @@ const checkoutSchema = z.object({
     .max(60)
     .transform((v) => (v === "" ? null : v))
     .nullable()
+    .optional(),
+  /**
+   * What the gym charges its members in.
+   *
+   * Posted by the browser, so it is checked against the list rather than
+   * trusted — an unknown code would put a currency into the database that
+   * nothing can format, and every price in that workspace would break at once.
+   */
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine(isKnownCurrency, "Pick a currency from the list")
     .optional(),
 });
 
@@ -85,9 +98,9 @@ export async function purchasePlanAction(formData: FormData): Promise<ActionResu
           country: place?.country ?? null,
           latitude: place?.lat ?? null,
           longitude: place?.lng ?? null,
-          // Without this the column fell to its default and a gym in Oslo
-          // priced its memberships in rupees.
-          currency: currencyForCountry(place?.country),
+          // What the owner chose. The city's suggestion is the fallback for a
+          // form posted without one, and the platform default behind that.
+          currency: d.currency ?? suggestCurrency(d.city, place?.country),
           logoText:
             d.gymName
               .replace(/[^A-Za-z]/g, "")

@@ -89,6 +89,23 @@ own country at the checkout it hosts. `formatUsd` is what the gym pays _us_;
 `formatCurrency` stays for what a gym charges _its own members_, in the gym's own
 currency.
 
+**A gym is asked outright what it charges in.** The sign-up forms seed the
+dropdown from the city as it is typed — Oslo suggests NOK, Dubai AED — and the
+owner overrides it if their gym prices in something else, which is ordinary near
+a border. Once chosen it is theirs: editing the city later never rewrites it.
+`Gym.currency` is the source of truth, and `Plan`/`Subscription`/`Payment` carry
+a copy so a historical amount still says what it was quoted in.
+
+The fallback is **USD**. It was INR, on the reasoning that most of these gyms
+are Indian — which is an assumption rather than a default, and it failed
+silently: a gym in Norway whose city the gazetteer did not recognise came out
+priced in rupees with no sign anything had gone wrong. A neutral fallback is
+wrong more often and wrong _visibly_, which is the better trade.
+
+Lakhs and crores are not a formatting style but how Indian money is counted, so
+`formatCurrencyCompact` reaches for them only when the currency is INR, and uses
+K/M everywhere else.
+
 Payments are not wired yet — **Dodo Payments** is the intended provider, chosen
 because it settles one USD price from any country. `orderValue()` is the single
 function that says what an order was worth, and `PlatformOrder` carries

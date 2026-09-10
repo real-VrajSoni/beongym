@@ -6,14 +6,31 @@ import { ArrowLeft, Check, CreditCard, Lock, ShieldCheck } from "lucide-react";
 import { purchasePlanAction } from "@/app/actions/checkout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyField } from "@/components/ui/currency-field";
 import { FormError, FormField } from "@/components/ui/form-field";
 import { useAction } from "@/components/ui/use-action";
 import { formatUsd } from "@/lib/format";
+import { suggestCurrency } from "@/lib/geo/currency";
 import { INCLUDED, ELITE_EXTRAS, discountFor, type PlatformPlan } from "@/lib/platform-plans";
 
 export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
   const { pending, error, fieldErrors, run } = useAction();
   const [gymName, setGymName] = useState("");
+  const [city, setCity] = useState("");
+
+  // The city suggests the currency, and the owner overrides it if their gym
+  // prices in something else. Tracked separately from `city` so a suggestion
+  // never overwrites a choice they have already made by hand.
+  const [currency, setCurrency] = useState(suggestCurrency());
+  const [touchedCurrency, setTouchedCurrency] = useState(false);
+  const suggested = suggestCurrency(city);
+  const [lastSuggestion, setLastSuggestion] = useState(suggested);
+  if (suggested !== lastSuggestion) {
+    // Adjusted during render, not in an effect, so the select never paints the
+    // previous city's currency for a frame.
+    setLastSuggestion(suggested);
+    if (!touchedCurrency) setCurrency(suggested);
+  }
 
   const elite = plan.key === "LIFETIME";
   const amount = plan.price;
@@ -60,8 +77,39 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
                 required
               />
             </FormField>
-            <FormField label="City" htmlFor="city" error={fieldErrors.city}>
-              <Input id="city" name="city" placeholder="Mumbai" className="h-11" />
+            <FormField
+              label="City"
+              htmlFor="city"
+              error={fieldErrors.city}
+              hint="Puts your gym on the map. A country works too if you would rather not say yet."
+            >
+              <Input
+                id="city"
+                name="city"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Oslo"
+                className="h-11"
+              />
+            </FormField>
+            <FormField
+              label="What you charge members in"
+              htmlFor="currency"
+              error={fieldErrors.currency}
+              hint={
+                touchedCurrency || currency === suggested
+                  ? "Every price in your workspace is shown in this. You can change it in settings."
+                  : `We guessed ${suggested} from your city — change it if that is wrong.`
+              }
+            >
+              <CurrencyField
+                id="currency"
+                value={currency}
+                onChange={(next) => {
+                  setTouchedCurrency(true);
+                  setCurrency(next);
+                }}
+              />
             </FormField>
           </div>
         </div>
@@ -83,8 +131,8 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
           </ul>
           {elite ? (
             <p className="mt-4 text-[12.5px] text-[var(--success)]">
-              {discountFor("LIFETIME")}% off {formatUsd(plan.listPrice)} — early bird, for a
-              limited time. Never billed again.
+              {discountFor("LIFETIME")}% off {formatUsd(plan.listPrice)} — early bird, for a limited
+              time. Never billed again.
             </p>
           ) : null}
         </div>

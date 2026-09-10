@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Section } from "@/components/ui/section";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PAYMENT_METHOD_LABELS, label } from "@/lib/labels";
+import { DEFAULT_CURRENCY } from "@/lib/geo/currency";
 
 export const metadata = { title: "Payments" };
 
@@ -19,7 +20,7 @@ export default async function MemberPaymentsPage() {
   const paidTotal = me.payments
     .filter((p) => p.status === "SUCCESSFUL")
     .reduce((sum, p) => sum + p.amount, 0);
-  const currency = m?.currency ?? me.payments[0]?.currency ?? "INR";
+  const currency = m?.currency ?? me.payments[0]?.currency ?? DEFAULT_CURRENCY;
 
   return (
     <div className="space-y-5">

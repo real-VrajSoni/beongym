@@ -9,7 +9,7 @@ import { generateGymCode } from "@/lib/data/gym-code";
 import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
-import { currencyForCountry } from "@/lib/geo/currency";
+import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
 
 const listingSchema = z.object({
@@ -21,6 +21,13 @@ const listingSchema = z.object({
   city: z.string().trim().min(2, "Which city are you in?").max(60),
   address: z.string().trim().max(200).optional(),
   phone: z.string().trim().min(6, "Members need a number to call").max(20),
+  /** Checked against the list, never trusted — see checkout.ts. */
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine(isKnownCurrency, "Pick a currency from the list")
+    .optional(),
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   amenities: z.string().trim().max(400).optional(),
   openingHours: z.string().trim().max(120).optional(),
@@ -106,7 +113,7 @@ export async function listGymAction(formData: FormData): Promise<ListingResult> 
           description: d.description || null,
           city: canonicalCity(d.city) ?? d.city,
           country: place?.country ?? null,
-          currency: currencyForCountry(place?.country),
+          currency: d.currency ?? suggestCurrency(d.city, place?.country),
           latitude: lat,
           longitude: lng,
           address: d.address || null,

@@ -7,7 +7,7 @@ import { createSession, getSession, requireOwner, requirePaidStaff } from "@/lib
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
-import { currencyForCountry } from "@/lib/geo/currency";
+import { isKnownCurrency } from "@/lib/geo/currency";
 import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
 
 const gymProfileSchema = z.object({
@@ -29,6 +29,19 @@ const gymProfileSchema = z.object({
     .string()
     .trim()
     .regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour"),
+  /**
+   * The gym's currency, as chosen. Checked against the list, not trusted.
+   *
+   * An explicit choice outranks the country: a gym that has deliberately set
+   * one must not have it silently rewritten because somebody corrected a
+   * typo in the city on the same save.
+   */
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine(isKnownCurrency, "Pick a currency from the list")
+    .optional(),
   /** Dropped by hand on the map picker. Blank means "use the city". */
   latitude: z.coerce
     .number()
@@ -69,10 +82,11 @@ export async function updateGymProfileAction(formData: FormData): Promise<Action
         tagline: d.tagline || null,
         city: canonicalCity(d.city) ?? d.city ?? null,
         country: place?.country ?? undefined,
-        // Moving a gym across a border changes what it charges in. Only set
-        // when the city actually resolves — an unrecognised one must not
-        // quietly reset a currency the owner is trading in.
-        currency: place ? currencyForCountry(place.country) : undefined,
+        // The owner's choice, full stop. The city no longer overrides it: a
+        // gym near a border may well price in the other side's money, and
+        // having that silently rewritten on an unrelated save is worse than
+        // asking once and remembering the answer.
+        currency: d.currency ?? undefined,
         address: d.address || null,
         phone: d.phone || null,
         email: d.email || null,

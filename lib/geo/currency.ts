@@ -89,15 +89,37 @@ const BY_COUNTRY: Record<string, Money> = {
 };
 
 /**
- * India, because that is where most of these gyms are and a default should be
- * the common case rather than the neutral one.
+ * The dollar, as the fallback when nothing else is known.
+ *
+ * It used to be the rupee, on the reasoning that most of these gyms are Indian.
+ * That reasoning was wrong in the way defaults are usually wrong: it was not a
+ * default so much as an assumption, and the moment a gym in Norway typed a word
+ * the gazetteer did not recognise, it priced its memberships in rupees and gave
+ * no sign anything had gone amiss. A neutral fallback is wrong more often but
+ * wrong *visibly* — nobody in Oslo mistakes dollars for their own money.
+ *
+ * It is only ever a fallback. The gym is asked outright at sign-up, seeded with
+ * whatever its city suggests, and can change it in settings afterwards.
  */
-export const DEFAULT_CURRENCY = "INR";
+export const DEFAULT_CURRENCY = "USD";
 
 /** The currency a gym in this country would quote. */
 export function currencyForCountry(country: string | null | undefined): string {
   if (!country) return DEFAULT_CURRENCY;
   return BY_COUNTRY[country.trim()]?.code ?? DEFAULT_CURRENCY;
+}
+
+/**
+ * What to preselect for a gym, given whatever it has told us so far.
+ *
+ * A suggestion, not a decision — the sign-up form seeds the dropdown with this
+ * and the owner overrides it if their gym prices in something else, which is
+ * ordinary near a border or anywhere the local money is unstable.
+ */
+export function suggestCurrency(city?: string | null, country?: string | null): string {
+  if (country) return currencyForCountry(country);
+  if (city) return currencyForCity(city);
+  return DEFAULT_CURRENCY;
 }
 
 /**
@@ -124,18 +146,49 @@ export function localeForCurrency(code: string): string {
   return "en-US";
 }
 
-/** Every currency in use, for a settings dropdown. Sorted, de-duplicated. */
+/** Every currency this product knows how to quote in. */
+export const CURRENCY_CODES: string[] = [
+  ...new Set(Object.values(BY_COUNTRY).map((m) => m.code)),
+].sort();
+
+/** True when a posted currency is one we recognise. The browser is not trusted. */
+export function isKnownCurrency(code: string): boolean {
+  return CURRENCY_CODES.includes(code);
+}
+
+/**
+ * The list for a dropdown: "USD — $ · US Dollar".
+ *
+ * The code, the symbol and the name, because none of the three is enough alone.
+ * Half a dozen currencies render as a bare "$", several countries call theirs a
+ * dollar, and nobody scrolling a list recognises "SEK" on sight.
+ *
+ * The dollar leads, then the currencies of the countries with the most gyms,
+ * then the rest alphabetically — a settings list nobody has to search is worth
+ * more than a strictly ordered one.
+ */
 export function currencyOptions(): { code: string; label: string }[] {
-  const seen = new Map<string, string>();
-  for (const [country, money] of Object.entries(BY_COUNTRY)) {
-    if (!seen.has(money.code)) seen.set(money.code, country);
-  }
-  return [...seen.entries()]
-    .map(([code]) => ({
-      code,
-      label: `${code} — ${symbolFor(code)}`,
-    }))
-    .sort((a, b) => a.code.localeCompare(b.code));
+  const names = (() => {
+    try {
+      return new Intl.DisplayNames(["en"], { type: "currency" });
+    } catch {
+      return null;
+    }
+  })();
+
+  const label = (code: string) => {
+    const symbol = symbolFor(code);
+    const name = names?.of(code);
+    const head = symbol && symbol !== code ? `${code} — ${symbol}` : code;
+    return name && name !== code ? `${head} · ${name}` : head;
+  };
+
+  const first = ["USD", "EUR", "GBP", "INR", "AED", "AUD", "CAD"];
+  const rest = CURRENCY_CODES.filter((c) => !first.includes(c)).sort((a, b) => a.localeCompare(b));
+  return [...first.filter((c) => CURRENCY_CODES.includes(c)), ...rest].map((code) => ({
+    code,
+    label: label(code),
+  }));
 }
 
 /** Just the symbol, for a form prefix where the full amount would be noise. */
