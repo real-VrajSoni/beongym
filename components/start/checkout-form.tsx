@@ -62,6 +62,23 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
 
   const localPrice = quote && quote.for === currency && currency !== "USD" ? quote.price : null;
 
+  /**
+   * The same figures in the buyer's money, when Dodo has quoted one.
+   *
+   * `paying` is Dodo's own number. `wasPaying` is the list price scaled by the
+   * rate implied by that quote — arithmetic of ours, not a second quote, which
+   * is why it is only ever used for the struck-through "was" figure and never
+   * for the amount anybody is asked to approve.
+   */
+  const rate = localPrice ? localPrice.amount / amount : null;
+  const paying = localPrice
+    ? formatCurrency(localPrice.amount, localPrice.currency)
+    : formatUsd(amount);
+  const wasPaying =
+    localPrice && rate
+      ? formatCurrency(plan.listPrice * rate, localPrice.currency)
+      : formatUsd(plan.listPrice);
+
   const previewCode =
     (gymName
       .toUpperCase()
@@ -174,8 +191,8 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
           </ul>
           {elite ? (
             <p className="mt-4 text-[12.5px] text-[var(--success)]">
-              {discountFor("LIFETIME")}% off {formatUsd(plan.listPrice)} — early bird, for a limited
-              time. Never billed again.
+              {discountFor("LIFETIME")}% off {wasPaying} — early bird, for a limited time. Never
+              billed again.
             </p>
           ) : null}
         </div>
@@ -194,10 +211,15 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
               </p>
             </div>
             <div className="text-right">
-              <p className="tabular text-[18px] font-semibold">{formatUsd(amount)}</p>
-              <p className="tabular text-[12px] text-muted-foreground line-through">
-                {formatUsd(plan.listPrice)}
-              </p>
+              <p className="tabular text-[18px] font-semibold">{paying}</p>
+              <p className="tabular text-[12px] text-muted-foreground line-through">{wasPaying}</p>
+              {localPrice ? (
+                // The plan is priced and settles in dollars; this is what the
+                // card is charged. Saying both is the only honest version.
+                <p className="tabular mt-0.5 text-[11.5px] text-[var(--subtle-foreground)]">
+                  {formatUsd(amount)} billed
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -217,13 +239,13 @@ export function CheckoutForm({ plan }: { plan: PlatformPlan }) {
             disabled={gymName.trim().length < 2}
             className="mt-5 h-11 w-full"
           >
-            <CreditCard /> Pay {formatUsd(amount)}
+            <CreditCard /> Pay {paying}
           </Button>
 
           {localPrice ? (
             <p className="mt-2 text-center text-[12px] text-muted-foreground">
-              About {formatCurrency(localPrice.amount, localPrice.currency)} on your card — Dodo
-              converts at the rate on the day.
+              Converted by Dodo at today&rsquo;s rate. The plan is priced in dollars, so the exact
+              amount can move a little by the time you pay.
             </p>
           ) : null}
 
