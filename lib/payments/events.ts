@@ -6,6 +6,7 @@ import type {
 	OrderStatus,
 } from "@/lib/generated/prisma/enums";
 import { extendAccess, planByKey, tierFor } from "@/lib/platform-plans";
+import { productIdFor } from "./dodo";
 import { paymentLog } from "./log";
 import { fulfilOrder } from "./fulfil";
 
@@ -62,16 +63,19 @@ function fromMinorUnits(amount: number | undefined): number {
  * cannot be wrong. The metadata fallback exists for events replayed from the
  * dashboard, where the cart may be absent.
  */
-export function planKeyFor(payload: DodoPayload): "MONTHLY" | "ANNUAL" {
+export function planKeyFor(payload: DodoPayload): "MONTHLY" | "ANNUAL" | null {
 	const meta = payload.metadata?.planKey;
-	if (meta === "ANNUAL" || meta === "MONTHLY") return meta;
-	if (
-		payload.product_id &&
-		payload.product_id === process.env.DODO_PRODUCT_ID_ANNUAL
-	) {
-		return "ANNUAL";
-	}
-	return "MONTHLY";
+	const metadataPlan = meta === "ANNUAL" || meta === "MONTHLY" ? meta : null;
+	if (!payload.product_id) return metadataPlan;
+
+	const productPlan =
+		payload.product_id === productIdFor("MONTHLY")
+			? "MONTHLY"
+			: payload.product_id === productIdFor("ANNUAL")
+				? "ANNUAL"
+				: null;
+	if (!productPlan) return null;
+	return metadataPlan && metadataPlan !== productPlan ? null : productPlan;
 }
 
 /**
@@ -294,6 +298,13 @@ export async function applyEvent(
 	const payload = event.data ?? {};
 	const gymId = await resolveGymId(tx, payload);
 	const planKey = planKeyFor(payload);
+	if (!planKey) {
+		return {
+			handled: false,
+			gymId,
+			note: "unrecognised or mismatched Dodo product",
+		};
+	}
 
 	// A pending order comes first, and deliberately before the gym check: for a
 	// new signup there IS no gym yet. The order holds what one needs to exist,
@@ -312,6 +323,7 @@ export async function applyEvent(
 		});
 		if (done.ok)
 			return { handled: true, gymId: done.gymId, note: done.note };
+		return { handled: false, gymId: null, note: done.note };
 	}
 
 	if (!gymId) {

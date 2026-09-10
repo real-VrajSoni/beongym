@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@/lib/generated/prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireProspect } from "@/lib/auth";
@@ -37,32 +38,80 @@ export async function claimGymAction(
 		if (!parsed.success) return invalid(parsed.error);
 		const d = parsed.data;
 
-		const gym = await db.gym.findFirst({
-			where: { code: d.code.toUpperCase(), claimed: false },
-			select: { id: true, name: true, city: true },
-		});
+		const createClaim = async () =>
+			db.$transaction(
+				async (tx) => {
+					const gym = await tx.gym.findFirst({
+						where: { code: d.code.toUpperCase(), claimed: false },
+						select: { id: true, name: true, city: true },
+					});
+					if (!gym) return null;
+
+					const openClaim = await tx.platformOrder.findFirst({
+						where: {
+							gymId: gym.id,
+							kind: "CLAIM",
+							status: "PENDING",
+						},
+						select: { id: true },
+					});
+					if (openClaim) return null;
+					return gym;
+				},
+				{
+					isolationLevel:
+						Prisma.TransactionIsolationLevel.Serializable,
+				},
+			);
+
+		let gym: Awaited<ReturnType<typeof createClaim>> = null;
+		for (let attempt = 0; attempt < 3; attempt++) {
+			try {
+				gym = await createClaim();
+				break;
+			} catch (error) {
+				if (
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2034" &&
+					attempt < 2
+				)
+					continue;
+				throw error;
+			}
+		}
 		if (!gym) {
 			return {
 				ok: false as const,
-				error: "That gym has already been claimed.",
+				error: "That gym is already being claimed or has been claimed.",
 			};
 		}
 
-		// The listing is not transferred until the money is verified. It used to
-		// transfer on the spot with the order marked PAID, which meant anyone who
-		// could reach this form could take over a listing for nothing.
-		const result = await startPurchase({
-			userId: session.userId,
-			email: session.email,
-			name: session.name,
-			planKey: "MONTHLY",
-			kind: "CLAIM",
-			gymName: gym.name,
-			city: gym.city,
-			gymId: gym.id,
-			returnPath: "/checkout/return",
-			meta: { role: d.role, phone: d.phone },
-		});
+		let result;
+		try {
+			result = await startPurchase({
+				userId: session.userId,
+				email: session.email,
+				name: session.name,
+				planKey: "MONTHLY",
+				kind: "CLAIM",
+				gymName: gym.name,
+				city: gym.city,
+				gymId: gym.id,
+				returnPath: "/checkout/return",
+				meta: { role: d.role, phone: d.phone },
+			});
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				return {
+					ok: false as const,
+					error: "That gym is already being claimed. Please try again later.",
+				};
+			}
+			throw error;
+		}
 
 		if (!result.ok) return { ok: false as const, error: result.error };
 		if (result.mode === "gateway") {

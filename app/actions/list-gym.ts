@@ -1,13 +1,9 @@
 "use server";
 
+import { Prisma } from "@/lib/generated/prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import {
-	createSession,
-	getSession,
-	hashPassword,
-	requireProspect,
-} from "@/lib/auth";
+import { createSession, hashPassword, requireProspect } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
@@ -211,7 +207,6 @@ export async function attachOwnerAction(
 				tier: true,
 				currency: true,
 				accessExpiresAt: true,
-				_count: { select: { users: true } },
 			},
 		});
 		if (!gym)
@@ -219,84 +214,99 @@ export async function attachOwnerAction(
 				ok: false as const,
 				error: "That listing no longer exists.",
 			};
-		if (gym._count.users > 0) {
-			return {
-				ok: false as const,
-				error: "This listing already has an owner. Sign in instead.",
-			};
-		}
 
-		const taken = await db.user.findUnique({
-			where: { email: d.email },
-			select: { id: true },
-		});
-		if (taken) {
-			return {
-				ok: false as const,
-				error: "",
-				fieldErrors: {
-					email: "That email already has an account. Sign in instead.",
+		let owner;
+		try {
+			owner = await db.$transaction(
+				async (tx) => {
+					const available = await tx.gym.findFirst({
+						where: {
+							id: gym.id,
+							users: { none: { role: "GYM_OWNER" } },
+						},
+						select: { id: true, currency: true },
+					});
+					if (!available) throw new Error("LISTING_HAS_OWNER");
+
+					const user = await tx.user.create({
+						data: {
+							gymId: available.id,
+							name: d.name,
+							email: d.email,
+							passwordHash: await hashPassword(d.password),
+							role: "GYM_OWNER",
+							lastLoginAt: new Date(),
+							trainerProfile: {
+								create: { gymId: available.id, title: "Owner" },
+							},
+						},
+						include: { trainerProfile: true },
+					});
+
+					const order = await tx.platformOrder.findFirst({
+						where: { gymId: available.id, userId: null },
+						select: { id: true },
+					});
+					if (order) {
+						await tx.platformOrder.update({
+							where: { id: order.id },
+							data: { userId: user.id },
+						});
+					}
+
+					await tx.plan.createMany({
+						data: STARTER_PLANS.map((p) => ({
+							...p,
+							gymId: available.id,
+							currency: available.currency,
+							trainerId: user.trainerProfile!.id,
+						})),
+					});
+
+					return user;
 				},
-			};
-		}
-
-		const owner = await db.$transaction(async (tx) => {
-			const user = await tx.user.create({
-				data: {
-					gymId: gym.id,
-					name: d.name,
-					email: d.email,
-					passwordHash: await hashPassword(d.password),
-					role: "GYM_OWNER",
-					lastLoginAt: new Date(),
-					trainerProfile: {
-						create: { gymId: gym.id, title: "Owner" },
-					},
+				{
+					isolationLevel:
+						Prisma.TransactionIsolationLevel.Serializable,
 				},
-				include: { trainerProfile: true },
-			});
-
-			const order = await tx.platformOrder.findFirst({
-				where: { gymId: gym.id, userId: null },
-				select: { id: true },
-			});
-			if (order) {
-				await tx.platformOrder.update({
-					where: { id: order.id },
-					data: { userId: user.id },
-				});
+			);
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				error.message === "LISTING_HAS_OWNER"
+			) {
+				return {
+					ok: false as const,
+					error: "This listing already has an owner. Sign in instead.",
+				};
 			}
-
-			// Programmes need a trainer to hang off, so the starting set is created
-			// the moment there is an owner to own them — unpriced, in the gym's own
-			// currency, and off the public store until the owner prices each one.
-			await tx.plan.createMany({
-				data: STARTER_PLANS.map((p) => ({
-					...p,
-					gymId: gym.id,
-					currency: gym.currency,
-					trainerId: user.trainerProfile!.id,
-				})),
-			});
-
-			return user;
-		});
-
-		const existing = await getSession();
-		if (!existing) {
-			await createSession({
-				userId: owner.id,
-				email: owner.email,
-				name: owner.name,
-				role: "GYM_OWNER",
-				profileId: owner.trainerProfile!.id,
-				gymId: gym.id,
-				gymName: gym.name,
-				gymCode: gym.code,
-				gymTier: gym.tier,
-				gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
-			});
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				return {
+					ok: false as const,
+					error: "",
+					fieldErrors: {
+						email: "That email already has an account. Sign in instead.",
+					},
+				};
+			}
+			throw error;
 		}
+
+		await createSession({
+			userId: owner.id,
+			email: owner.email,
+			name: owner.name,
+			role: "GYM_OWNER",
+			profileId: owner.trainerProfile!.id,
+			gymId: gym.id,
+			gymName: gym.name,
+			gymCode: gym.code,
+			gymTier: gym.tier,
+			gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
+		});
 
 		return { ok: true as const, message: "You're signed in." };
 	});
