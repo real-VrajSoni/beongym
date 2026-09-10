@@ -1,10 +1,11 @@
 /**
  * What the hero says, drawn in the space beside it.
  *
- * The headline is "Your gym runs on paper. It doesn't have to." — so the empty
- * columns either side hold the paper: the register, the payment notebook, the
- * attendance sheet, the WhatsApp group. They drift slowly, tilted, half faded,
- * the way a stack of forms sits on a desk nobody has time to tidy.
+ * The headline is "Run your gym like it's 2026", so the empty columns either
+ * side hold the year it is being run like instead: the register, the payment
+ * notebook, the attendance sheet, the WhatsApp group. Struck through, drifting
+ * slowly, tilted, the way a stack of forms sits on a desk nobody has time to
+ * tidy.
  *
  * It is decoration, but it is decoration that argues. Filling that space with
  * abstract orbs would have been easier and would have said nothing; these are

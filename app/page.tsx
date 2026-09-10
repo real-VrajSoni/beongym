@@ -205,9 +205,9 @@ export default async function LandingPage() {
             For gyms and studios
           </span>
           <h1 className="mt-7 text-[38px] leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[56px]">
-            Your gym runs on paper.
+            Run your gym like
             <br />
-            It doesn&rsquo;t have to.
+            it&rsquo;s 2026.
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-[16px] leading-relaxed text-[var(--mk-fg-muted)]">
             The register, the spreadsheet, the payment notebook, the attendance sheet and the
