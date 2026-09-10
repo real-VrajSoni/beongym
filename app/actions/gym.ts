@@ -8,7 +8,8 @@ import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency } from "@/lib/geo/currency";
-import { PURCHASABLE_PLAN_KEYS, extendAccess, orderValue, planByKey } from "@/lib/platform-plans";
+import { startCheckout } from "@/lib/payments/checkout";
+import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 
 const gymProfileSchema = z.object({
   name: z.string().trim().min(2, "Give your gym a name").max(60),
@@ -128,12 +129,9 @@ export async function purchaseAccessAction(planKey: string): Promise<ActionResul
     const session = await requireOwner();
     const parsed = planEnum.safeParse(planKey);
     if (!parsed.success) return { ok: false, error: "Unknown plan." };
-    const plan = planByKey(parsed.data);
-    const buying = plan.tier;
-
     const before = await db.gym.findUniqueOrThrow({
       where: { id: session.gymId },
-      select: { tier: true, accessExpiresAt: true, name: true, city: true },
+      select: { tier: true },
     });
 
     // Elite is permanent, so there is nothing left to sell an Elite gym.
@@ -141,57 +139,45 @@ export async function purchaseAccessAction(planKey: string): Promise<ActionResul
       return { ok: false, error: "You already have lifetime access — there is nothing to renew." };
     }
 
-    const lifetime = buying === "ELITE";
-    const accessExpiresAt = extendAccess(before.accessExpiresAt, plan.key);
-
-    const gym = await db.gym.update({
-      where: { id: session.gymId },
-      data: { tier: buying, accessExpiresAt, status: "ACTIVE", trialEndsAt: null },
+    // Nothing is granted here any more. This writes a PENDING order and hands
+    // the owner to the gateway; `subscription.active` on a verified webhook is
+    // what moves accessExpiresAt. The old version marked the order PAID and
+    // extended access on the spot, which was honest while there was no gateway
+    // and is a hole the moment there is one — anyone who could click the button
+    // could grant themselves a year.
+    const result = await startCheckout({
+      gymId: session.gymId,
+      userId: session.userId,
+      planKey: parsed.data === "ANNUAL" ? "ANNUAL" : "MONTHLY",
+      email: session.email,
+      name: session.name,
+      kind: "RENEWAL",
+      returnPath: "/gym/billing?checkout=returned",
     });
 
-    // A new row every time. This used to upsert on the gym, because a gym could
-    // hold only one order — so each renewal wrote over the payment before it and
-    // a year of monthly renewals left one row and no history. Money that cannot
-    // be reconciled is money you cannot refund, dispute or explain.
-    const amount = orderValue(plan.key);
-    await db.platformOrder.create({
-      data: {
-        gymId: gym.id,
-        userId: session.userId,
-        kind: "RENEWAL",
-        tier: buying,
-        billingCycle: plan.key,
-        amount,
-        currency: "USD",
-        status: "PAID",
-        provider: "manual",
-        gymName: gym.name,
-        city: gym.city,
-        paidAt: new Date(),
-      },
-    });
+    if (!result.ok) return { ok: false, error: result.error };
 
-    // Tier and expiry both gate the workspace from inside the token, so the
-    // session is reissued or the owner would be locked out by their own payment.
-    const current = await getSession();
-    if (current) {
-      await createSession({
-        ...current,
-        gymTier: gym.tier,
-        gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
-      });
+    if (result.mode === "simulated") {
+      // Access really did change, so the token that gates it has gone stale.
+      const current = await getSession();
+      if (current) {
+        const gym = await db.gym.findUniqueOrThrow({
+          where: { id: session.gymId },
+          select: { tier: true, accessExpiresAt: true },
+        });
+        await createSession({
+          ...current,
+          gymTier: gym.tier,
+          gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
+        });
+      }
+      revalidatePath("/gym/billing");
+      revalidatePath("/gym/dashboard");
+      return { ok: true, message: result.message };
     }
 
-    revalidatePath("/gym/billing");
-    revalidatePath("/gym/dashboard");
-    revalidatePath("/gym/settings");
-    revalidatePath("/gyms");
-    return {
-      ok: true,
-      message: lifetime
-        ? "Lifetime access is yours. No renewal, ever."
-        : `${plan.days} days added — you're paid up to ${gym.accessExpiresAt!.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`,
-    };
+    // The browser goes to the gateway. Access is still exactly what it was.
+    return { ok: true, message: "Redirecting to payment…", id: result.checkoutUrl };
   });
 }
 

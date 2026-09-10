@@ -123,7 +123,15 @@ export function TierPicker({
                     loading={pending}
                     onClick={() =>
                       run(() => purchaseAccessAction(plan.key), {
-                        onSuccess: () => {
+                        onSuccess: (result) => {
+                          // With a gateway configured the action grants nothing
+                          // and hands back a checkout URL instead; the browser
+                          // leaves for it. Without one it has already extended
+                          // access, and a refresh shows the new date.
+                          if (result.id?.startsWith("http")) {
+                            window.location.href = result.id;
+                            return;
+                          }
                           setTarget(null);
                           router.refresh();
                         },
