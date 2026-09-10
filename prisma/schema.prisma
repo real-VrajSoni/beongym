@@ -46,6 +46,28 @@ enum Role {
 /// Which door an order came through. The webhook needs it: what "paid" should
 /// provision differs by flow — a listing creates a gym, a claim transfers one,
 /// a renewal extends the window on a gym that already exists.
+/// Where a gym's platform subscription stands with the gateway.
+///
+/// Deliberately separate from whether the gym may use the product. Access is a
+/// date — `accessExpiresAt` — and a cancelled subscription keeps its access to
+/// the end of the period it paid for. Conflating the two would cut somebody off
+/// the moment they clicked cancel, which is neither what they bought nor what
+/// the refund policy says.
+enum BillingStatus {
+  /// Never subscribed through the gateway. Seeded gyms and manual grants.
+  NONE
+  /// Live and renewing.
+  ACTIVE
+  /// A renewal failed; the gateway is retrying. Access runs to the paid date.
+  ON_HOLD
+  /// Cancelled, and will not renew. Access runs to the paid date.
+  CANCELLED
+  /// Reached the end of its term.
+  EXPIRED
+  /// Never started — mandate creation failed at signup.
+  FAILED
+}
+
 enum OrderKind {
   /// /start/checkout — an account buying its first gym.
   CHECKOUT
@@ -332,6 +354,22 @@ model Gym {
    */
   checkInCode  String       @unique @default(cuid()) @map("check_in_code")
   trialEndsAt  DateTime?    @map("trial_ends_at")
+
+  /// The gateway's own ids for this gym, so a webhook can find it.
+  ///
+  /// A webhook arrives with Dodo's identifiers and nothing of ours except what
+  /// we put in the checkout metadata. These are the durable fallback for when
+  /// that metadata is missing — an event replayed from the dashboard, say.
+  /// Unique on the subscription, because two gyms sharing one is a bug we would
+  /// rather have the database refuse than discover in a support ticket.
+  dodoCustomerId     String?       @map("dodo_customer_id")
+  dodoSubscriptionId String?       @unique @map("dodo_subscription_id")
+  /// Where the subscription stands. Not whether access is granted — that is
+  /// `accessExpiresAt`, and the two deliberately disagree after a cancellation.
+  billingStatus      BillingStatus @default(NONE) @map("billing_status")
+  /// When the gateway last told us something about this subscription. Lets a
+  /// late-arriving event be recognised as late — Dodo does not guarantee order.
+  billingUpdatedAt   DateTime?     @map("billing_updated_at")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
@@ -355,6 +393,7 @@ model Gym {
   leads        Lead[]
 
   @@index([status])
+  @@index([dodoCustomerId])
   @@map("gyms")
 }
 
