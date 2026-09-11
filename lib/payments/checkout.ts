@@ -13,16 +13,8 @@ import {
 import { countryCodeFor, isKnownCurrency } from "@/lib/geo/currency";
 import { paymentLog } from "./log";
 import { fulfilOrder } from "./fulfil";
+import { serverEnv } from "@/lib/env";
 
-/**
- * Locale inputs for Dodo's hosted checkout.
- *
- * A currency alone is not enough: Dodo uses the billing country, billing
- * currency, subscription type, and the buyer's device to determine its eligible
- * payment methods. We intentionally do not set `allowed_payment_method_types`;
- * that parameter is a restriction and would hide valid country-specific options
- * such as iDEAL, Pix, Apple Pay, or UPI from otherwise eligible buyers.
- */
 function localisation(
 	currency: string | null | undefined,
 	country: string | null | undefined,
@@ -31,15 +23,11 @@ function localisation(
 		currency && currency !== "USD" && isKnownCurrency(currency)
 			? currency
 			: null;
-	// UPI requires INR and an Indian billing country. City lookup can be
-	// unavailable, so preserve this valid inference for an INR checkout.
 	const code = countryCodeFor(country) ?? (wanted === "INR" ? "IN" : null);
 
 	const out: Record<string, unknown> = {};
 	if (code) out.billing_address = { country: code };
 
-	// Local currency enables the gateway to apply each regional payment method's
-	// currency rules. When disabled, checkout safely settles in USD instead.
 	const useLocalCurrency = Boolean(wanted && adaptiveCurrency());
 	if (useLocalCurrency && wanted) out.billing_currency = wanted;
 	return out;
@@ -50,16 +38,6 @@ export type StartResult =
 	| { ok: true; mode: "simulated"; orderId: string; message: string }
 	| { ok: false; error: string };
 
-/**
- * Start a purchase for a gym that may not exist yet.
- *
- * The generalisation of `startCheckout`. A new signup has no gym — that is the
- * point of paying — so everything the gym will need is written onto the order's
- * `meta` and the gym is created by `fulfilOrder` when the payment is verified.
- *
- * Same rule as everywhere else on this path: this hands out nothing. It writes
- * a PENDING row and a checkout URL.
- */
 export async function startPurchase(input: {
 	userId: string | null;
 	email: string | null;
@@ -68,22 +46,15 @@ export async function startPurchase(input: {
 	kind: OrderKind;
 	gymName: string;
 	city: string | null;
-	/** Set when the gym already exists — a claim or a renewal. */
 	gymId?: string | null;
-	/** The gym's country, so the gateway offers the methods people there use. */
 	country?: string | null;
-	/**
-	 * What the buyer would rather be charged in.
-	 *
-	 * Dodo converts at live rates. The plan still settles in dollars; this only
-	 * changes what the card statement says, which is the difference between a
-	 * gym in Mumbai recognising the amount and guessing at it.
-	 */
 	billingCurrency?: string | null;
 	returnPath: string;
 	meta?: Record<string, unknown>;
 }): Promise<StartResult> {
+	const env = serverEnv();
 	const plan = planByKey(input.planKey);
+	const realGateway = gatewayConfigured();
 
 	const order = await db.platformOrder.create({
 		data: {
@@ -96,7 +67,7 @@ export async function startPurchase(input: {
 			amount: orderValue(input.planKey),
 			currency: "USD",
 			status: "PENDING",
-			provider: gatewayConfigured() ? "dodo" : "simulated",
+			provider: realGateway ? "dodo" : "simulated",
 			gymName: input.gymName,
 			city: input.city,
 			meta: (input.meta ?? {}) as Prisma.InputJsonValue,
@@ -104,8 +75,7 @@ export async function startPurchase(input: {
 		select: { id: true },
 	});
 
-	/* ── no gateway: fulfil directly, so the product still runs ─────── */
-	if (!gatewayConfigured()) {
+	if (!realGateway) {
 		const done = await db.$transaction((tx) =>
 			fulfilOrder(tx, order.id, { paymentId: `simulated:${order.id}` }),
 		);
@@ -127,7 +97,6 @@ export async function startPurchase(input: {
 		};
 	}
 
-	/* ── the real thing ─────────────────────────────────────────────── */
 	const productId = productIdFor(input.planKey);
 	if (!productId) {
 		await db.platformOrder.update({
@@ -150,8 +119,7 @@ export async function startPurchase(input: {
 		};
 	}
 
-	const appUrl =
-		process.env.APP_URL?.replace(/\/$/, "") || "https://beongym.com";
+	const appUrl = env.appUrl.replace(/\/$/, "");
 
 	try {
 		const checkoutLocalisation = localisation(
@@ -235,15 +203,6 @@ export async function startPurchase(input: {
 	}
 }
 
-/**
- * Re-sign the session after a purchase changed what the holder is.
- *
- * A signed token carries role, tenant, tier and expiry. Buying turns a PROSPECT
- * into a GYM_OWNER with a gym and an access window, so the token in their
- * browser describes somebody who no longer exists — and `sessionIsLive` rejects
- * a token whose contents disagree with the database, which would bounce them
- * to the login screen seconds after paying.
- */
 export async function reissueFor(userId: string): Promise<void> {
 	const user = await db.user.findUnique({
 		where: { id: userId },
