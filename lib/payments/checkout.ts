@@ -1,4 +1,5 @@
 import "server-only";
+import { enforceRateLimit } from "../rate-limit";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { db } from "@/lib/db";
 import { orderValue, planByKey, tierFor } from "@/lib/platform-plans";
@@ -42,6 +43,8 @@ export async function startPurchase(input: {
 	if (!realGateway) return { ok: false, error: "Payments are unavailable. Please contact support." };
 	if (input.kind === "CLAIM") return { ok: false, error: "Ownership verification is required before purchasing a claim. Please contact support." };
 	if (!input.userId || !input.email) return { ok: false, error: "Sign in before starting checkout." };
+  await enforceRateLimit("checkout-global", "all", 60, 3600000);
+  await enforceRateLimit("checkout-buyer", input.userId, 5, 3600000);
 	const buyer = await db.user.findFirst({ where: { id: input.userId, isActive: true }, select: { role: true, gymId: true } });
 	if (!buyer || (input.gymId ? buyer.role !== "GYM_OWNER" || buyer.gymId !== input.gymId : buyer.role !== "PROSPECT" || buyer.gymId !== null)) {
 		return { ok: false, error: "This account cannot start that purchase." };

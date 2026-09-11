@@ -1,5 +1,8 @@
 "use server";
 
+import { validNewPassword } from "@/lib/security";
+import { enforceRateLimit } from "@/lib/rate-limit";
+
 import { revalidatePath } from "next/cache";
 import { addDays } from "date-fns";
 import { db } from "@/lib/db";
@@ -164,9 +167,10 @@ export async function resetMemberPasswordAction(
 ): Promise<ActionResult> {
   return guard(async () => {
     const session = await requirePaidStaff();
+    await enforceRateLimit("password-reset", session.userId, 10, 3600000);
 
-    if (password.trim().length < 8) {
-      return { ok: false, error: "Use at least 8 characters." };
+    if (!validNewPassword(password)) {
+      return { ok: false, error: "Use at least 8 characters and at most 72 UTF-8 bytes." };
     }
 
     const member = await db.clientProfile.findFirst({
@@ -177,7 +181,7 @@ export async function resetMemberPasswordAction(
 
     await db.user.update({
       where: { id: member.user.id },
-      data: { passwordHash: await hashPassword(password) },
+      data: { passwordHash: await hashPassword(password), sessionVersion: { increment: 1 } },
     });
 
     revalidatePath(`/gym/clients/${clientId}`);

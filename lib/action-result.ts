@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { getSession } from "./auth";
+import { enforceRateLimit, RateLimitError } from "./rate-limit";
 
 export type ActionResult =
   | {
@@ -29,9 +31,13 @@ export function invalid(error: z.ZodError): ActionResult {
 /** Wraps an action body so unexpected failures never reach the user verbatim. */
 export async function guard(fn: () => Promise<ActionResult>): Promise<ActionResult> {
   try {
+    const session = await getSession();
+    await enforceRateLimit("mutations-global", "all", 1000, 60000);
+    await enforceRateLimit("mutations-actor", session?.userId ?? "anonymous", session ? 60 : 30, 60000);
     return await fn();
   } catch (err) {
     if (err && typeof err === "object" && "digest" in err) throw err;
+    if (err instanceof RateLimitError) return { ok: false, error: err.message };
 
     // Keep operational detail out of user responses and out of logs. The
     // provider/database error itself can contain credentials, SQL fragments,

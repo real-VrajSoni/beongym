@@ -87,6 +87,9 @@ jobs:
       - name: Run tenant isolation integration test
         run: npm run check:isolation
 
+      - name: Run shared rate-limit and session security regressions
+        run: node --conditions=react-server --import tsx scripts/security-check.ts
+
       - name: Run signed billing and route regressions
         run: npm run check:webhook && npm run check:routes && npm run check:globe
 

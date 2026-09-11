@@ -381,7 +381,7 @@ async function main() {
       ]);
       if (PUBLIC.has(name)) continue;
       const guarded =
-        /await require(Staff|Owner|Admin|Member|Prospect|PaidStaff|PaidOwner|PaidMember)\(\)|await getSession\(\)/.test(
+        /await require(Staff|Owner|Admin|Member|Prospect|PaidStaff|PaidOwner|PaidMember)\(\)|await get(?:Valid)?Session\(\)/.test(
           body,
         );
       add(`${file}:${name} — authenticated`, guarded, guarded ? "yes" : "NO AUTH GUARD");

@@ -96,7 +96,7 @@ export function MemberShell({
             <button
               type="submit"
               className="rounded-lg p-2 text-muted-foreground hover:bg-[var(--surface-muted)] hover:text-foreground"
-              aria-label="Sign out"
+              aria-label="Sign out on all devices"
             >
               <LogOut className="size-4" />
             </button>

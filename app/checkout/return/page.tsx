@@ -13,8 +13,8 @@ export default async function CheckoutReturnPage({ searchParams }: {
   if (!session) redirect("/login");
   // Role may have changed from prospect to owner. Validate the live identity,
   // then scope the receipt to that buyer without mutating cookies during render.
-  const buyer = await db.user.findFirst({ where: { id: session.userId, isActive: true }, select: { id: true } });
-  if (!buyer || !orderId || orderId.length > 200) notFound();
+  const buyer = await db.user.findFirst({ where: { id: session.userId, isActive: true }, select: { id: true, sessionVersion: true } });
+  if (!buyer || buyer.sessionVersion !== (session.sessionVersion ?? 0) || !orderId || orderId.length > 200) notFound();
   const order = await db.platformOrder.findFirst({ where: { id: orderId, userId: buyer.id },
     select: { id: true, status: true, gymName: true, meta: true, kind: true },
   });

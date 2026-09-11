@@ -1,5 +1,7 @@
 "use server";
 
+import { consumeRateLimit } from "@/lib/rate-limit";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -121,7 +123,10 @@ export async function saveGymLinksAction(formData: FormData): Promise<ActionResu
  * never get between them and the gym.
  */
 export async function recordLinkClickAction(linkId: string): Promise<void> {
-  await db.gymLink
-    .update({ where: { id: linkId }, data: { clickCount: { increment: 1 } } })
-    .catch(() => null);
+  if (typeof linkId !== "string" || linkId.length > 200) return;
+  try {
+    if (!(await consumeRateLimit("public-link-click", "all", 300, 60000))) return;
+    if (!(await consumeRateLimit("public-link", linkId, 30, 60000))) return;
+    await db.gymLink.updateMany({ where: { id: linkId, gym: { listed: true, status: { in: ["ACTIVE", "TRIAL"] } } }, data: { clickCount: { increment: 1 } } });
+  } catch { /* Best-effort analytics must not block a public link. */ }
 }

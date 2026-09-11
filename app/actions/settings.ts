@@ -1,9 +1,10 @@
 "use server";
 
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { createSession, getSession, hashPassword, requireStaff } from "@/lib/auth";
+import { createSession, getValidSession, hashPassword, requireStaff } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { passwordSchema, trainerProfileSchema } from "@/lib/validation";
 
@@ -50,8 +51,9 @@ export async function updateTrainerProfileAction(formData: FormData): Promise<Ac
 
 export async function changePasswordAction(formData: FormData): Promise<ActionResult> {
   return guard(async () => {
-    const session = await getSession();
+    const session = await getValidSession();
     if (!session) return { ok: false, error: "Not signed in." };
+    await enforceRateLimit("password-change", session.userId, 5, 3600000);
 
     const parsed = passwordSchema.safeParse(obj(formData));
     if (!parsed.success) return invalid(parsed.error);
@@ -69,11 +71,12 @@ export async function changePasswordAction(formData: FormData): Promise<ActionRe
       };
     }
 
-    await db.user.update({
-      where: { id: session.userId },
-      data: { passwordHash: await hashPassword(parsed.data.newPassword) },
+    const updated = await db.user.updateMany({
+      where: { id: session.userId, sessionVersion: session.sessionVersion ?? 0, passwordHash: user.passwordHash },
+      data: { passwordHash: await hashPassword(parsed.data.newPassword), sessionVersion: { increment: 1 } },
     });
-
-    return { ok: true, message: "Password changed." };
+    if (!updated.count) return { ok: false, error: "Your session changed. Sign in again." };
+    await createSession({ ...session, sessionVersion: (session.sessionVersion ?? 0) + 1 });
+    return { ok: true, message: "Password changed. Other sessions have been signed out." };
   });
 }

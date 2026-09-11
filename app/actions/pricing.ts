@@ -1,8 +1,11 @@
 "use server";
 
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { decimalAmount } from "@/lib/payments/policy";
+
 import { adaptiveCurrency, dodo, gatewayConfigured, productIdFor } from "@/lib/payments/dodo";
 import { isKnownCurrency } from "@/lib/geo/currency";
-import { getSession } from "@/lib/auth";
+import { getValidSession } from "@/lib/auth";
 
 /**
  * What a plan costs in the buyer's own money.
@@ -42,8 +45,8 @@ export async function previewPlanPriceAction(
   planKey: string,
   currency: string,
 ): Promise<PricePreview> {
-  const session = await getSession();
-  if (!session) return null;
+  const session = await getValidSession();
+  if (!session || typeof currency !== "string" || currency.length > 3) return null;
 
   const key = planKey === "ANNUAL" ? "ANNUAL" : "MONTHLY";
   const code = currency.trim().toUpperCase();
@@ -56,6 +59,7 @@ export async function previewPlanPriceAction(
   if (!productId) return null;
 
   try {
+    if (!(await consumeRateLimit("payment-preview", session.userId, 10, 60000))) return null;
     const preview = await dodo().checkoutSessions.preview({
       product_cart: [{ product_id: productId, quantity: 1 }],
       billing_currency: code as never,
@@ -64,7 +68,7 @@ export async function previewPlanPriceAction(
     const minor = breakup?.total_amount;
     if (typeof minor !== "number" || !Number.isFinite(minor)) return null;
     // Dodo works in the smallest unit; the app formats whole currency.
-    return { amount: minor / 100, currency: code, charged: adaptiveCurrency() };
+    return { amount: Number(decimalAmount(BigInt(minor), code)), currency: code, charged: adaptiveCurrency() };
   } catch {
     // A currency Dodo will not quote, or a hiccup. The dollar price stands.
     return null;

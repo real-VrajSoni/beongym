@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validNewPassword } from "./security";
 
 const optionalText = (max = 2000) =>
   z
@@ -49,7 +50,7 @@ export const createClientSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(80),
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   phone: optionalText(20),
-  password: z.string().min(8, "Password must be at least 8 characters").max(72),
+  password: z.string().refine(validNewPassword, "Use at least 8 characters and at most 72 UTF-8 bytes"),
   gender: optionalGender,
   dateOfBirth: z.string().optional(),
   planId: z.string().min(1, "Choose a programme"),
@@ -166,7 +167,7 @@ export const createStaffSchema = z.object({
   phone: optionalText(20),
   title: optionalText(60),
   role: staffRoleEnum,
-  password: z.string().min(8, "Use at least 8 characters").max(72),
+  password: z.string().refine(validNewPassword, "Use at least 8 characters and at most 72 UTF-8 bytes"),
   specialization: optionalText(160),
 });
 
@@ -191,9 +192,9 @@ export const trainerProfileSchema = z.object({
 
 export const passwordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Enter your current password"),
-    newPassword: z.string().min(8, "New password must be at least 8 characters").max(72),
-    confirmPassword: z.string().min(1, "Confirm the new password"),
+    currentPassword: z.string().min(1, "Enter your current password").max(256),
+    newPassword: z.string().refine(validNewPassword, "Use at least 8 characters and at most 72 UTF-8 bytes"),
+    confirmPassword: z.string().min(1, "Confirm the new password").max(256),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
     message: "Passwords do not match",

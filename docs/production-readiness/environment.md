@@ -15,6 +15,7 @@ Never paste values into tickets, logs or reports. Copy `.env.example` locally an
 | NODE_ENV | framework configuration | Next sets runtime mode. Do not override to development on a deployed server. |
 | VERCEL_ENV | hosting configuration | Provider-set development/preview/production. Preview has the same security boundary but requires sandbox payments. |
 | NEXT_RUNTIME | framework configuration | Instrumentation initializes validation in nodejs runtime. |
+| GEOCODING_SEARCH_URL | optional third-party server configuration | HTTPS Nominatim-compatible search endpoint; disabled when absent. Explicit submissions only, shared maximum one request per 1.1 seconds. Operator must verify terms, attribution and quota; autocomplete is offline. |
 | CHECK_BASE_URL | development/test | Optional local test URL. Fixture HTTP scripts refuse remote targets. |
 | DISPOSABLE_DATABASE | development/test only | Explicit true required by fixture writers/reset. Also requires local DB named beongym_test or beongym_test_<suffix>. Forbidden in production/preview. |
 | ALLOW_SIMULATED_PAYMENTS | rejected in deployed runtime | Not a production escape hatch. Existing implicit local simulation is removed in phase 2. |

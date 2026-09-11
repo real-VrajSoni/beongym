@@ -1,5 +1,7 @@
 "use server";
 
+import { enforceRateLimit } from "@/lib/rate-limit";
+
 import { db } from "@/lib/db";
 import { listGyms } from "@/lib/data/directory";
 import type { DirectoryGym } from "@/lib/data/directory";
@@ -19,6 +21,7 @@ export type LiveStats = {
  * window that needs a refresh to show new stock is a stale one.
  */
 export async function getMapGymsAction(): Promise<DirectoryGym[]> {
+  await enforceRateLimit("public-map", "all", 600, 60000);
   return listGyms();
 }
 
@@ -31,6 +34,7 @@ export async function getMapGymsAction(): Promise<DirectoryGym[]> {
  * table.
  */
 export async function getLiveStatsAction(): Promise<LiveStats> {
+  await enforceRateLimit("public-stats", "all", 1000, 60000);
   // The same population the map draws: listed, trading, and paid up.
   const where = {
     listed: true,

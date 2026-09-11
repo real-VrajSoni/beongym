@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
+import { validNewPassword } from "./security";
 import { hasAccess } from "./platform-plans";
 import {
 	SESSION_COOKIE,
@@ -19,11 +20,14 @@ export type { SessionUser, Role } from "./session";
 
 /** Cost 12 — deliberate, this is the only place passwords are hashed. */
 export async function hashPassword(password: string): Promise<string> {
+	if (!validNewPassword(password)) throw new Error("Password must be 8 characters or more and at most 72 UTF-8 bytes");
 	return bcrypt.hash(password, 12);
 }
 
 export async function createSession(user: SessionUser): Promise<void> {
-	const token = await signSession(user);
+	const account = await db.user.findFirst({ where: { id: user.userId, isActive: true }, select: { sessionVersion: true } });
+	if (!account || (user.sessionVersion !== undefined && user.sessionVersion !== account.sessionVersion)) throw new Error("Session no longer valid");
+	const token = await signSession({ ...user, sessionVersion: account.sessionVersion });
 	const store = await cookies();
 	store.set(SESSION_COOKIE, token, {
 		httpOnly: true,
@@ -35,6 +39,8 @@ export async function createSession(user: SessionUser): Promise<void> {
 }
 
 export async function destroySession(): Promise<void> {
+	const session = await getSession();
+	if (session) await db.user.updateMany({ where: { id: session.userId, sessionVersion: session.sessionVersion ?? 0 }, data: { sessionVersion: { increment: 1 } } });
 	const store = await cookies();
 	store.delete(SESSION_COOKIE);
 }
@@ -49,6 +55,7 @@ export async function getSession(): Promise<SessionUser | null> {
 /** Shape a database user into the session payload. */
 type UserWithProfiles = {
 	id: string;
+	sessionVersion: number;
 	name: string;
 	email: string | null;
 	role: string;
@@ -68,6 +75,7 @@ type UserWithProfiles = {
 function toSession(user: UserWithProfiles): SessionUser {
 	return {
 		userId: user.id,
+		sessionVersion: user.sessionVersion,
 		email: user.email,
 		name: user.name,
 		role: user.role as Role,
@@ -216,9 +224,9 @@ async function sessionIsLive(session: SessionUser): Promise<boolean> {
 	// A deactivated account loses access on its very next request.
 	const account = await db.user.findFirst({
 		where: { id: session.userId, isActive: true },
-		select: { id: true, role: true },
+		select: { id: true, role: true, sessionVersion: true },
 	});
-	if (!account || account.role !== session.role) return false;
+	if (!account || account.role !== session.role || account.sessionVersion !== (session.sessionVersion ?? 0)) return false;
 
 	if (session.role === "SUPER_ADMIN") return true;
 	// A prospect has no gym or profile yet — the account alone is enough.

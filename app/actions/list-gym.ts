@@ -1,16 +1,13 @@
 "use server";
 
-import { Prisma } from "@/lib/generated/prisma/client";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { createSession, hashPassword, requireProspect } from "@/lib/auth";
+import { requireProspect } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
 import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
 import { DEFAULT_BUSINESS_TYPE, isBusinessType } from "@/lib/business-types";
-import { STARTER_PLANS } from "@/lib/data/starter-plans";
 import { startPurchase } from "@/lib/payments/checkout";
 
 const listingSchema = z.object({
@@ -158,138 +155,8 @@ export async function listGymAction(
 	});
 }
 
-const attachSchema = z.object({
-	code: z.string().trim().min(3).max(24),
-	email: z.string().trim().toLowerCase().email(),
-	name: z.string().trim().min(2, "Enter your name").max(60),
-	password: z.string().min(8, "Use at least 8 characters").max(72),
-});
-
-/**
- * Optional second half of the listing flow: turn the paid listing into an
- * account the owner can sign in to. Only works while the gym still has no
- * users, so it cannot be used to take over someone else's gym.
- */
-export async function attachOwnerAction(
-	formData: FormData,
-): Promise<ActionResult> {
-	return guard(async () => {
-		const parsed = attachSchema.safeParse(
-			Object.fromEntries(formData.entries()),
-		);
-		if (!parsed.success) return invalid(parsed.error);
-		const d = parsed.data;
-
-		const gym = await db.gym.findFirst({
-			where: { code: d.code.toUpperCase() },
-			select: {
-				id: true,
-				name: true,
-				code: true,
-				tier: true,
-				currency: true,
-				accessExpiresAt: true,
-			},
-		});
-		if (!gym)
-			return {
-				ok: false as const,
-				error: "That listing no longer exists.",
-			};
-
-		let owner;
-		try {
-			owner = await db.$transaction(
-				async (tx) => {
-					const available = await tx.gym.findFirst({
-						where: {
-							id: gym.id,
-							users: { none: { role: "GYM_OWNER" } },
-						},
-						select: { id: true, currency: true },
-					});
-					if (!available) throw new Error("LISTING_HAS_OWNER");
-
-					const user = await tx.user.create({
-						data: {
-							gymId: available.id,
-							name: d.name,
-							email: d.email,
-							passwordHash: await hashPassword(d.password),
-							role: "GYM_OWNER",
-							lastLoginAt: new Date(),
-							trainerProfile: {
-								create: { gymId: available.id, title: "Owner" },
-							},
-						},
-						include: { trainerProfile: true },
-					});
-
-					const order = await tx.platformOrder.findFirst({
-						where: { gymId: available.id, userId: null },
-						select: { id: true },
-					});
-					if (order) {
-						await tx.platformOrder.update({
-							where: { id: order.id },
-							data: { userId: user.id },
-						});
-					}
-
-					await tx.plan.createMany({
-						data: STARTER_PLANS.map((p) => ({
-							...p,
-							gymId: available.id,
-							currency: available.currency,
-							trainerId: user.trainerProfile!.id,
-						})),
-					});
-
-					return user;
-				},
-				{
-					isolationLevel:
-						Prisma.TransactionIsolationLevel.Serializable,
-				},
-			);
-		} catch (error) {
-			if (
-				error instanceof Error &&
-				error.message === "LISTING_HAS_OWNER"
-			) {
-				return {
-					ok: false as const,
-					error: "This listing already has an owner. Sign in instead.",
-				};
-			}
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				return {
-					ok: false as const,
-					error: "",
-					fieldErrors: {
-						email: "That email already has an account. Sign in instead.",
-					},
-				};
-			}
-			throw error;
-		}
-
-		await createSession({
-			userId: owner.id,
-			email: owner.email,
-			name: owner.name,
-			role: "GYM_OWNER",
-			profileId: owner.trainerProfile!.id,
-			gymId: gym.id,
-			gymName: gym.name,
-			gymCode: gym.code,
-			gymTier: gym.tier,
-			gymAccessExpiresAt: gym.accessExpiresAt?.toISOString() ?? null,
-		});
-
-		return { ok: true as const, message: "You're signed in." };
-	});
+/** Legacy attachment cannot prove ownership; preserve the entry point without takeover. */
+export async function attachOwnerAction(formData: FormData): Promise<ActionResult> {
+  void formData;
+  return { ok: false, error: "Existing listings require independent ownership verification. Contact support to claim this business." };
 }

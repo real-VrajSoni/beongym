@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getValidSession } from "@/lib/auth";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 /**
  * "Is whoever is holding this browser still signed in?"
@@ -20,7 +21,10 @@ import { getSession } from "@/lib/auth";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const session = await getSession();
+  if (!(await consumeRateLimit("session-status", "all", 1000, 60000))) {
+    return NextResponse.json({ signedIn: false }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "60" } });
+  }
+  const session = await getValidSession();
   return NextResponse.json(
     { signedIn: session !== null },
     {

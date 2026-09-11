@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/session";
+import { destroySession } from "@/lib/auth";
+import { serverEnv } from "@/lib/env";
 
 /**
  * Sign-out endpoint.
@@ -12,7 +14,8 @@ import { SESSION_COOKIE } from "@/lib/session";
  * Only same-origin navigations are honoured, so a third-party page cannot
  * force a visitor to be signed out with an <img src="/logout">.
  */
-function clear(request: NextRequest) {
+async function clear(request: NextRequest) {
+  await destroySession();
   // Home, not the sign-in page.
   //
   // Landing on /login left people in a loop: the workspace is still behind them
@@ -29,12 +32,13 @@ function clear(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const site = request.headers.get("sec-fetch-site");
-  if (site && site !== "same-origin" && site !== "none") {
-    return NextResponse.redirect(new URL("/", request.url));
+  if (site !== "same-origin" && site !== "none") {
+    return NextResponse.json({ error: "Same-origin navigation required" }, { status: 403 });
   }
   return clear(request);
 }
 
 export async function POST(request: NextRequest) {
+  if (request.headers.get("origin") !== serverEnv().appUrl) return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   return clear(request);
 }

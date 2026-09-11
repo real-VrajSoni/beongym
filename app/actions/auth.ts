@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { loginRateAllowed } from "@/lib/rate-limit";
+import { safeRedirectPath } from "@/lib/security";
 import {
   authenticateMember,
   authenticateStaff,
@@ -11,8 +13,8 @@ import {
 } from "@/lib/auth";
 
 const loginSchema = z.object({
-  email: z.string().trim().min(1, "Email is required").email("Enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().trim().min(1, "Email is required").max(320).email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required").max(256),
 });
 
 export type LoginState = { error?: string; fieldErrors?: Record<string, string> };
@@ -32,6 +34,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     return { fieldErrors };
   }
 
+  if (!(await loginRateAllowed(`staff:${parsed.data.email}`))) return { error: "Too many sign-in attempts. Wait before trying again." };
   const result = await authenticateStaff(parsed.data.email, parsed.data.password);
   if (!result.ok) {
     return {
@@ -49,14 +52,14 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 
   const next = String(formData.get("next") ?? "");
   // Only allow same-origin relative redirects.
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : null;
+  const safeNext = safeRedirectPath(next);
   redirect(safeNext ?? homeFor(user.role));
 }
 
 const memberLoginSchema = z.object({
-  gymCode: z.string().trim().min(3, "Your gym code is on your membership card"),
-  memberCode: z.string().trim().min(1, "Member code is required"),
-  password: z.string().min(1, "Password is required"),
+  gymCode: z.string().trim().min(3, "Your gym code is on your membership card").max(24),
+  memberCode: z.string().trim().min(1, "Member code is required").max(40),
+  password: z.string().min(1, "Password is required").max(256),
 });
 
 /**
@@ -85,6 +88,7 @@ export async function memberLoginAction(
     return { fieldErrors };
   }
 
+  if (!(await loginRateAllowed(`member:${parsed.data.gymCode}:${parsed.data.memberCode}`))) return { error: "Too many sign-in attempts. Wait before trying again." };
   const result = await authenticateMember(
     parsed.data.gymCode,
     parsed.data.memberCode,
@@ -93,9 +97,7 @@ export async function memberLoginAction(
   if (!result.ok) {
     return {
       error:
-        result.reason === "GYM_NOT_FOUND"
-          ? "We don't know that gym code. Check it against your membership card."
-          : result.reason === "GYM_SUSPENDED"
+        result.reason === "GYM_SUSPENDED"
             ? "That gym's account is suspended. Ask at the desk."
             : result.reason === "GYM_LAPSED"
               ? "Your gym's BeOnGym subscription has run out, so the member app is paused. Your membership at the gym is unaffected."
@@ -110,7 +112,8 @@ export async function memberLoginAction(
   const next = String(formData.get("next") ?? "");
   // Only member surfaces: the app itself, and the check-in a scanned QR
   // bounced them here from.
-  const safeNext = next.startsWith("/me") || next.startsWith("/checkin/") ? next : null;
+  const path = safeRedirectPath(next);
+  const safeNext = path && (path === "/me" || path.startsWith("/me/") || path.startsWith("/checkin/")) ? path : null;
   redirect(safeNext ?? homeFor(result.user.role));
 }
 

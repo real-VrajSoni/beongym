@@ -13,6 +13,8 @@ export type Role = "SUPER_ADMIN" | "GYM_OWNER" | "GYM_STAFF" | "MEMBER" | "PROSP
 
 export type SessionUser = {
   userId: string;
+  /** Legacy cookies default to version zero until reset/revocation. */
+  sessionVersion?: number;
   email: string | null;
   name: string;
   role: Role;
@@ -54,10 +56,18 @@ export async function signSession(user: SessionUser): Promise<string> {
 
 export async function verifySession(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, secretKey());
-    if (!payload.userId || !payload.role) return null;
+    const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"], maxTokenAge: SESSION_MAX_AGE });
+    if (typeof payload.userId !== "string" || !payload.userId || payload.userId.length > 200 ||
+      !["SUPER_ADMIN", "GYM_OWNER", "GYM_STAFF", "MEMBER", "PROSPECT"].includes(String(payload.role)) ||
+      typeof payload.name !== "string" || payload.name.length > 120 ||
+      typeof payload.exp !== "number" || typeof payload.iat !== "number" || payload.exp - payload.iat > SESSION_MAX_AGE ||
+      (payload.sessionVersion !== undefined && (!Number.isInteger(payload.sessionVersion) || Number(payload.sessionVersion) < 0))) return null;
+    for (const key of ["profileId", "gymId", "email", "gymName", "gymCode", "gymTier", "gymAccessExpiresAt"]) {
+      if (payload[key] != null && (typeof payload[key] !== "string" || String(payload[key]).length > 320)) return null;
+    }
     return {
-      userId: String(payload.userId),
+      userId: payload.userId,
+      sessionVersion: Number(payload.sessionVersion ?? 0),
       email: payload.email ? String(payload.email) : null,
       name: String(payload.name),
       role: payload.role as Role,

@@ -6,10 +6,12 @@ import { db } from "@/lib/db";
 import { createSession, hashPassword } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
 import { PURCHASABLE_PLAN_KEYS } from "@/lib/platform-plans";
+import { validNewPassword } from "@/lib/security";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const createAccountSchema = z.object({
 	name: z.string().trim().min(2, "Enter your name").max(60),
-	email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+	email: z.string().trim().toLowerCase().max(320).email("Enter a valid email address"),
 	// Required, and with its country code: a gym owner we cannot ring is a gym
 	// owner we cannot help, and every reminder this product sends is a phone
 	// number away from being useless.
@@ -22,7 +24,7 @@ const createAccountSchema = z.object({
 			/^\+\d[\d\s-]{6,}$/,
 			"Include your country code — pick it from the list",
 		),
-	password: z.string().min(8, "Use at least 8 characters").max(72),
+	password: z.string().refine(validNewPassword, "Use at least 8 characters and at most 72 UTF-8 bytes"),
 	/** Carried through from the pricing table so checkout opens on that plan. */
 	plan: z.enum(PURCHASABLE_PLAN_KEYS).optional(),
 	/** Gym code carried through from "claim this gym", so signing up returns
@@ -51,6 +53,8 @@ export async function createAccountAction(
 		);
 		if (!parsed.success) return invalid(parsed.error);
 		const d = parsed.data;
+		await enforceRateLimit("signup-global", "all", 30, 3600000);
+		await enforceRateLimit("signup-email", d.email, 3, 3600000);
 
 		const existing = await db.user.findUnique({
 			where: { email: d.email },

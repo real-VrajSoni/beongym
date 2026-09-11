@@ -67,7 +67,7 @@ function MenuItems({ user }: { user: MenuUser }) {
           }}
         >
           <LogOut />
-          <span className="text-[13px]">Sign out</span>
+          <span className="text-[13px]">Sign out on all devices</span>
         </a>
       </DropdownItem>
     </DropdownContent>

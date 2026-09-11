@@ -59,9 +59,14 @@ export function parseEnvironment(input: Environment) {
     if (key.startsWith("NEXT_PUBLIC_") && /(SECRET|TOKEN|PASSWORD|PRIVATE_KEY|DATABASE_URL|DODO.*KEY)/i.test(key) && value(key)) errors.add(key);
   }
   if (deployed && (value("ALLOW_SIMULATED_PAYMENTS") === "true" || value("DISPOSABLE_DATABASE") === "true")) errors.add("development-only flags");
+  const geocodingSearchUrl = value("GEOCODING_SEARCH_URL");
+  if (geocodingSearchUrl) {
+    try { const url = new URL(geocodingSearchUrl); if (url.protocol !== "https:" || url.username || url.password || localHostname(url.hostname)) throw new Error(); }
+    catch { errors.add("GEOCODING_SEARCH_URL"); }
+  }
   if (errors.size) throw new Error(`Invalid application configuration: ${[...errors].join(", ")}. Values are intentionally omitted.`);
   return {
-    databaseUrl, authSecret, appUrl,
+    databaseUrl, authSecret, appUrl, geocodingSearchUrl,
     dodoApiKey: value("DODO_PAYMENTS_API_KEY"),
     dodoWebhookKey: value("DODO_PAYMENTS_WEBHOOK_KEY"),
     dodoEnvironment: dodoEnvironment as "live_mode" | "test_mode" | undefined,

@@ -1,5 +1,8 @@
 "use server";
 
+import { validNewPassword } from "@/lib/security";
+import { enforceRateLimit } from "@/lib/rate-limit";
+
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { hashPassword, requirePaidOwner } from "@/lib/auth";
@@ -149,7 +152,7 @@ export async function setStaffActiveAction(
       }
     }
 
-    await db.user.update({ where: { id: staff.id }, data: { isActive } });
+    await db.user.update({ where: { id: staff.id }, data: { isActive, sessionVersion: { increment: 1 } } });
 
     revalidatePath("/gym/staff");
     return {
@@ -168,9 +171,10 @@ export async function resetStaffPasswordAction(
 ): Promise<ActionResult> {
   return guard(async () => {
     const session = await requirePaidOwner();
+    await enforceRateLimit("password-reset", session.userId, 10, 3600000);
 
-    if (password.trim().length < 8) {
-      return { ok: false, error: "Use at least 8 characters." };
+    if (!validNewPassword(password)) {
+      return { ok: false, error: "Use at least 8 characters and at most 72 UTF-8 bytes." };
     }
 
     const staff = await db.user.findFirst({
@@ -181,7 +185,7 @@ export async function resetStaffPasswordAction(
 
     await db.user.update({
       where: { id: staff.id },
-      data: { passwordHash: await hashPassword(password) },
+      data: { passwordHash: await hashPassword(password), sessionVersion: { increment: 1 } },
     });
 
     revalidatePath("/gym/staff");

@@ -339,6 +339,14 @@ model BillingPayment {
   @@map("billing_payments")
 }
 
+model RateLimitBucket {
+  key String @id
+  hits Int
+  expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
+}
+
 model BillingAdjustment {
   id String @id
   paymentId String @map("payment_id")
@@ -484,6 +492,7 @@ model User {
   email        String?   @unique
   phone        String?
   passwordHash String    @map("password_hash")
+  sessionVersion Int @default(0) @map("session_version")
   role         Role      @default(MEMBER)
   /// Deactivated accounts cannot sign in, but everything they authored —
   /// plans, sessions, notes — stays intact. This is why staff are never
