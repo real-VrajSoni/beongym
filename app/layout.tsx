@@ -5,6 +5,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { THEME_COOKIE } from "@/lib/theme";
 import { BRAND } from "@/lib/brand";
 import "./globals.css";
+import "./theme-fix.css";
 
 // Capriola ships a single 400 weight, so hierarchy comes from size, colour and
 // letter-spacing rather than from bold. Where markup asks for a heavier weight
