@@ -57,7 +57,6 @@ const PUBLIC_ROUTES: [string, string][] = [
 	["/gyms", "Every gym on Earth"],
 	["/gyms/IRON-4821", "Iron Temple Fitness"],
 	["/claim", "Claim your gym"],
-	["/checkout/return", "Confirming your payment"],
 	["/gyms/COAST-5521/claim", "Coastline CrossFit"],
 	// The four a payment provider checks for before granting live access. They
 	// must be reachable without signing in, which is the whole point of them.
@@ -160,6 +159,10 @@ async function main() {
 
 	const rows: { route: string; status: number; ok: boolean; note: string }[] =
 		[];
+	const privateReturn = await fetch(BASE + "/checkout/return", { redirect: "manual" });
+	rows.push({ route: "/checkout/return (anonymous)", status: privateReturn.status,
+		ok: privateReturn.status === 307 && privateReturn.headers.get("location") === "/login",
+		note: "Payment details require a signed-in buyer" });
 	const protectedListing = await fetch(BASE + "/list", {
 		redirect: "manual",
 	});

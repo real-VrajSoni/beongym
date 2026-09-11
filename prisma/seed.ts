@@ -1285,6 +1285,9 @@ const GYMS: GymSpec[] = [
 
 async function reset() {
   // Order matters — the historical tables use onDelete: Restrict.
+  await db.billingAdjustment.deleteMany();
+  await db.billingPayment.deleteMany();
+  await db.billingSubscription.deleteMany();
   await db.platformOrder.deleteMany();
   await db.trainerNote.deleteMany();
   await db.payment.deleteMany();

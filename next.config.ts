@@ -7,6 +7,7 @@ const PRIVATE_ROUTES = [
   "/me/:path*",
   "/start/:path*",
   "/checkin/:path*",
+  "/checkout/:path*",
 ];
 
 const nextConfig: NextConfig = {

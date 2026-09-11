@@ -1,6 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { extendAccess, planByKey, tierFor } from "@/lib/platform-plans";
+import { planByKey, tierFor } from "@/lib/platform-plans";
 import { generateGymCode } from "@/lib/data/gym-code";
 import { STARTER_PLANS } from "@/lib/data/starter-plans";
 import {
@@ -15,7 +15,7 @@ import type { Tx } from "./events";
  *
  * Everything a purchase creates — the gym, the owner, the starting programmes,
  * the access window — happens here and nowhere else, and this runs only from a
- * verified webhook or from simulated mode.
+ * verified webhook after reconciling the payment ledger.
  *
  * It used to happen inside the actions themselves. That was defensible while
  * there was no gateway to wait for, and became a hole the moment there was
@@ -39,17 +39,11 @@ const num = (m: Meta, k: string): number | null => {
 	return typeof v === "number" && Number.isFinite(v) ? v : null;
 };
 
-/** The access window this order buys, added to whatever is already there. */
-function windowFor(
-	current: Date | null,
-	planKey: string,
-	fromGateway: string | undefined,
-) {
-	if (fromGateway) {
-		const d = new Date(fromGateway);
-		if (!Number.isNaN(d.getTime())) return d;
-	}
-	return extendAccess(current, planKey);
+function windowFor(current: Date | null, planKey: string, fromGateway: string | undefined) {
+  if (!fromGateway) throw new Error("Verified billing period required");
+  const date = new Date(fromGateway);
+  if (!Number.isFinite(date.getTime())) throw new Error("Invalid billing period");
+  return current && current > date ? current : date;
 }
 
 export type FulfilResult = { ok: boolean; gymId: string | null; note: string };
@@ -70,13 +64,23 @@ export async function fulfilOrder(
 		nextBillingDate?: string;
 	} = {},
 ): Promise<FulfilResult> {
+	await tx.$queryRaw`SELECT id FROM platform_orders WHERE id = ${orderId} FOR UPDATE`;
 	const order = await tx.platformOrder.findUnique({ where: { id: orderId } });
 	if (!order) return { ok: false, gymId: null, note: "order not found" };
 
-	if (order.status === "PAID") {
+	if ((order.meta as Meta | null)?.fulfilledAt) {
 		return { ok: true, gymId: order.gymId, note: "already fulfilled" };
 	}
 
+	if (order.kind === "CLAIM") return { ok: false, gymId: order.gymId, note: "Independent ownership approval required" };
+	if (!order.userId || !gateway.paymentId || !gateway.subscriptionId) throw new Error("Verified buyer and payment required");
+	await tx.$queryRaw`SELECT id FROM users WHERE id = ${order.userId} FOR UPDATE`;
+	const buyer = await tx.user.findUnique({ where: { id: order.userId } });
+	if (!buyer?.isActive || (order.gymId ? buyer.gymId !== order.gymId || buyer.role !== "GYM_OWNER" : buyer.role !== "PROSPECT" || buyer.gymId !== null)) throw new Error("Buyer cannot own this gym");
+	const payment = await tx.billingPayment.findUnique({ where: { id: gateway.paymentId }, include: { subscription: true } });
+	if (!payment || payment.status !== "succeeded" || payment.amountMinor <= BigInt(0) || !payment.accessUntil ||
+		payment.subscription.orderId !== order.id || payment.subscriptionId !== gateway.subscriptionId ||
+		payment.accessUntil.toISOString() !== gateway.nextBillingDate || order.status === "REFUNDED" || order.status === "CANCELLED") throw new Error("Payment does not authorize fulfilment");
 	const meta = (order.meta ?? {}) as Meta;
 	const planKey = order.billingCycle;
 	const plan = planByKey(planKey);
@@ -139,15 +143,6 @@ export async function fulfilOrder(
 			note: `no gym for a ${order.kind} order`,
 		};
 
-	if (order.kind === "CLAIM") {
-		const claimable = await tx.gym.findFirst({
-			where: { id: gymId, claimed: false },
-			select: { id: true },
-		});
-		if (!claimable)
-			return { ok: false, gymId, note: "listing was already claimed" };
-	}
-
 	/* ── the buyer becomes the owner ───────────────────────────────── */
 	if (order.userId) {
 		const user = await tx.user.findUnique({
@@ -196,7 +191,7 @@ export async function fulfilOrder(
 	/* ── the access window, and the gateway's handles ──────────────── */
 	const gym = await tx.gym.findUniqueOrThrow({
 		where: { id: gymId },
-		select: { accessExpiresAt: true },
+		select: { accessExpiresAt: true, status: true },
 	});
 
 	await tx.gym.update({
@@ -210,7 +205,7 @@ export async function fulfilOrder(
 						planKey,
 						gateway.nextBillingDate,
 					),
-			status: "ACTIVE",
+			status: gym.status === "TRIAL" ? "ACTIVE" : gym.status,
 			claimed: true,
 			trialEndsAt: null,
 			dodoCustomerId: gateway.customerId ?? undefined,
@@ -225,11 +220,8 @@ export async function fulfilOrder(
 		data: {
 			gymId,
 			status: "PAID",
-			paidAt: new Date(),
-			providerRef:
-				gateway.paymentId ??
-				gateway.subscriptionId ??
-				order.providerRef,
+			paidAt: order.paidAt,
+			providerRef: order.providerRef,
 			meta: {
 				...meta,
 				fulfilledAt: new Date().toISOString(),

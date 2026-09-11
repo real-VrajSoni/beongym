@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireProspect } from "@/lib/auth";
 import { guard, invalid, type ActionResult } from "@/lib/action-result";
-import { reissueFor, startPurchase } from "@/lib/payments/checkout";
+import { startPurchase } from "@/lib/payments/checkout";
 
 const claimSchema = z.object({
 	code: z.string().trim().min(3).max(24),
@@ -14,19 +14,7 @@ const claimSchema = z.object({
 	phone: z.string().trim().min(6, "A number we can reach you on").max(20),
 });
 
-/**
- * Takes over an unclaimed listing.
- *
- * Payment first. The transfer — ownership, access, the starting programmes —
- * happens in `fulfilOrder` when a verified webhook says the money arrived. It
- * used to happen here, with the order written `status: "PAID"`, which meant
- * anybody who could reach this form could take a listing for nothing.
- *
- * A claim is still verified by a human afterwards: the admin sees the order,
- * the stated role and the phone number, and rings the gym. Handing a stranger
- * an existing listing on a card payment alone would be worse than no claim
- * flow at all.
- */
+/** Claims require independent ownership verification; payment cannot transfer a gym. */
 export async function claimGymAction(
 	formData: FormData,
 ): Promise<ActionResult> {
@@ -114,18 +102,6 @@ export async function claimGymAction(
 		}
 
 		if (!result.ok) return { ok: false as const, error: result.error };
-		if (result.mode === "gateway") {
-			return {
-				ok: true as const,
-				message: "Redirecting to payment…",
-				checkoutUrl: result.checkoutUrl,
-			};
-		}
-		await reissueFor(session.userId);
-		return {
-			ok: true as const,
-			message: `${gym.name} is yours.`,
-			id: "/gym/settings?claimed=1",
-		};
+		return { ok: true, message: "Redirecting to payment…", checkoutUrl: result.checkoutUrl };
 	});
 }

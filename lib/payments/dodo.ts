@@ -2,15 +2,8 @@ import "server-only";
 import DodoPayments from "dodopayments";
 import { isProductionDeployment, serverEnv, validateEnvironment } from "@/lib/env";
 
-/**
- * The gateway mode is explicit at the deployment boundary.
- *
- * Development/test environments may omit Dodo credentials and use the existing
- * simulated flow. A live production deployment may not: configuration is
- * validated before a payment path can execute, so missing credentials fail
- * closed instead of silently granting simulated access.
- */
-export type DodoMode = "simulated" | "test" | "live";
+/** Missing credentials disable checkout in every environment; never simulate payment. */
+export type DodoMode = "unavailable" | "test" | "live";
 
 export function dodoMode(): DodoMode {
   validateEnvironment();
@@ -20,7 +13,7 @@ export function dodoMode(): DodoMode {
     if (isProductionDeployment()) {
       throw new Error("Payment gateway configuration is missing.");
     }
-    return "simulated";
+    return "unavailable";
   }
 
   return process.env.DODO_PAYMENTS_ENVIRONMENT === "live_mode" ? "live" : "test";
@@ -28,7 +21,7 @@ export function dodoMode(): DodoMode {
 
 /** True when a real gateway is configured. */
 export function gatewayConfigured(): boolean {
-  return dodoMode() !== "simulated";
+  return dodoMode() !== "unavailable";
 }
 
 function environment(): "live_mode" | "test_mode" {

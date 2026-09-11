@@ -8,7 +8,7 @@ import { canonicalCity } from "@/lib/geo/places";
 import { locateAnywhere } from "@/lib/geo/remote";
 import { isKnownCurrency, suggestCurrency } from "@/lib/geo/currency";
 import { DEFAULT_BUSINESS_TYPE, isBusinessType } from "@/lib/business-types";
-import { reissueFor, startPurchase } from "@/lib/payments/checkout";
+import { startPurchase } from "@/lib/payments/checkout";
 
 const checkoutSchema = z.object({
 	// Only plans on sale today. A retired key posted by hand is rejected here,
@@ -44,19 +44,7 @@ const checkoutSchema = z.object({
 		.optional(),
 });
 
-/**
- * Records the order and provisions the gym.
- *
- * NO PAYMENT GATEWAY IS CONNECTED YET. The order is written with
- * `provider: "manual"` and marked paid immediately so the flow is complete end
- * to end. When Razorpay or Dodo goes in, this splits in two: create the order
- * PENDING and hand off to the gateway, then run `provisionGym` from the
- * webhook once the payment is captured. Nothing else in the app needs to move.
- *
- * `amount` is the pre-tax price. Dodo works out GST/VAT from the buyer's
- * country at the checkout it hosts, so the figure banked here and the figure
- * charged can differ by the tax line.
- */
+/** Creates a pending checkout; verified payment and subscription events provision access. */
 export async function purchasePlanAction(
 	formData: FormData,
 ): Promise<ActionResult> {
@@ -81,7 +69,7 @@ export async function purchasePlanAction(
 			kind: "CHECKOUT",
 			gymName: d.gymName,
 			city: d.city ?? null,
-			returnPath: "/start/checkout/return",
+			returnPath: "/checkout/return",
 			// A gym that charges its members in rupees would rather pay us in rupees
 			// too. Dodo converts at live rates; the plan still settles in dollars.
 			billingCurrency:
@@ -98,16 +86,6 @@ export async function purchasePlanAction(
 		});
 
 		if (!result.ok) return { ok: false, error: result.error };
-		if (result.mode === "gateway") {
-			return {
-				ok: true,
-				message: "Redirecting to payment…",
-				checkoutUrl: result.checkoutUrl,
-			};
-		}
-		// Simulated: the gym really was created, so the session must be reissued —
-		// this account was a PROSPECT a moment ago and is now an owner.
-		await reissueFor(session.userId);
-		return { ok: true, message: result.message, id: "/gym/dashboard" };
+		return { ok: true, message: "Redirecting to payment…", checkoutUrl: result.checkoutUrl };
 	});
 }

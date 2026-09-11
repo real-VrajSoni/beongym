@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Section } from "@/components/ui/section";
 import { TierPicker } from "@/components/settings/tier-picker";
+import { BillingPortal } from "@/components/settings/billing-portal";
 import { GymStatusBadge } from "@/components/admin/gym-badges";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ export default async function BillingPage() {
 			trialEndsAt: true,
 			accessExpiresAt: true,
 			createdAt: true,
+			dodoSubscriptionId: true,
 			_count: { select: { members: true, staff: true } },
 			orders: {
 				orderBy: { createdAt: "desc" },
@@ -85,9 +87,7 @@ export default async function BillingPage() {
 									<>
 										Paid up to{" "}
 										{formatDate(gym.accessExpiresAt!)}.
-										Renewing early stacks onto what you have
-										left — you never lose days you already
-										paid for.
+										Your subscription and payment confirmations determine the next paid period.
 									</>
 								) : (
 									<>
@@ -150,7 +150,7 @@ export default async function BillingPage() {
 					return to.
 				</p>
 			</div>
-			<TierPicker canEdit daysRemaining={remaining} lifetime={lifetime} />
+			{gym.dodoSubscriptionId ? <BillingPortal /> : <TierPicker canEdit daysRemaining={remaining} lifetime={lifetime} />}
 
 			<div className="mt-5">
 				<Section title="Billing" bodyClassName="px-5 py-4">
@@ -160,8 +160,8 @@ export default async function BillingPage() {
 						{planByKey("ANNUAL").price} for a year. Local tax (GST,
 						VAT, sales tax) is calculated from your billing country
 						at the secure Dodo Payments checkout and added there.
-						Buying or renewing opens a new checkout session; access
-						is extended only after Dodo confirms the payment.
+						Subscriptions renew according to the billing schedule shown at checkout.
+						Manage an existing subscription above. Access changes after verified provider confirmation.
 					</p>
 				</Section>
 			</div>

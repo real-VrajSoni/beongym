@@ -17,3 +17,11 @@ Risks/external work: production credentials and infrastructure are unverified. L
 ## Phase 2 — in progress
 
 Official Dodo webhook lifecycle and installed SDK types are being checked before provider-specific changes. Do not deploy while audit P0/P1 remain open.
+
+### Phase 2 local verification
+
+Changed: checkout actions and gateway mode; provider ledger schema/migration; event validation/handler/fulfilment; private checkout return and legacy redirect; owner billing portal entry point; claim copy; payment regression suite; seed dependency order; private cache headers.
+
+Passed: 19 unit tests; 46 signed HTTP webhook checks; unavailable-gateway no-order check; 185 tenant assertions; 62 HTTP isolation checks; 41 route checks; lint; typecheck; diff whitespace check. Additive migration applied only to disposable test DB. The old anonymous checkout-return route test failed because authentication is now required; replaced its obsolete public-content expectation with a required login redirect and added own-buyer/other-buyer checks. Subsequent route suite passed.
+
+Remaining launch gates: actual hosted Dodo checkout/portal verification; provider product/account settings; verified ledger import for any existing fulfilled Dodo subscriptions; independent claim approval workflow; production monitoring/restore and recurring-billing legal review. See `payments.md`. These are not claimed complete. No paid access is fabricated to bypass them. Next: phase 3 shared rate limiting and session security.

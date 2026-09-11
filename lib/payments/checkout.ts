@@ -1,13 +1,11 @@
 import "server-only";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { db } from "@/lib/db";
-import { createSession, type Role } from "@/lib/auth";
 import { orderValue, planByKey, tierFor } from "@/lib/platform-plans";
 import type { OrderKind } from "@/lib/generated/prisma/enums";
 import { adaptiveCurrency, dodo, gatewayConfigured, productIdFor } from "./dodo";
 import { countryCodeFor, isKnownCurrency } from "@/lib/geo/currency";
 import { paymentLog } from "./log";
-import { fulfilOrder } from "./fulfil";
 import { serverEnv } from "@/lib/env";
 
 function localisation(currency: string | null | undefined, country: string | null | undefined) {
@@ -22,7 +20,6 @@ function localisation(currency: string | null | undefined, country: string | nul
 
 export type StartResult =
 	| { ok: true; mode: "gateway"; checkoutUrl: string; orderId: string }
-	| { ok: true; mode: "simulated"; orderId: string; message: string }
 	| { ok: false; error: string };
 
 export async function startPurchase(input: {
@@ -42,47 +39,37 @@ export async function startPurchase(input: {
 	const env = serverEnv();
 	const plan = planByKey(input.planKey);
 	const realGateway = gatewayConfigured();
-
-	const order = await db.platformOrder.create({
-		data: {
-			gymId: input.gymId ?? null,
-			userId: input.userId,
-			email: input.email,
-			kind: input.kind,
-			tier: tierFor(input.planKey),
-			billingCycle: input.planKey,
-			amount: orderValue(input.planKey),
-			currency: "USD",
-			status: "PENDING",
-			provider: realGateway ? "dodo" : "simulated",
-			gymName: input.gymName,
-			city: input.city,
-			meta: (input.meta ?? {}) as Prisma.InputJsonValue,
-		},
-		select: { id: true },
-	});
-
-	if (!realGateway) {
-		const done = await db.$transaction((tx) => fulfilOrder(tx, order.id, { paymentId: `simulated:${order.id}` }));
-		paymentLog("info", "purchase.simulated", { orderId: order.id, gymId: done.gymId, kind: input.kind });
-		if (!done.ok) return { ok: false, error: "That purchase could not be completed." };
-		return {
-			ok: true,
-			mode: "simulated",
-			orderId: order.id,
-			message: `${plan.name} is active. No payment gateway is configured, so no card was charged.`,
-		};
+	if (!realGateway) return { ok: false, error: "Payments are unavailable. Please contact support." };
+	if (input.kind === "CLAIM") return { ok: false, error: "Ownership verification is required before purchasing a claim. Please contact support." };
+	if (!input.userId || !input.email) return { ok: false, error: "Sign in before starting checkout." };
+	const buyer = await db.user.findFirst({ where: { id: input.userId, isActive: true }, select: { role: true, gymId: true } });
+	if (!buyer || (input.gymId ? buyer.role !== "GYM_OWNER" || buyer.gymId !== input.gymId : buyer.role !== "PROSPECT" || buyer.gymId !== null)) {
+		return { ok: false, error: "This account cannot start that purchase." };
+	}
+	if (input.gymId) {
+		const gym = await db.gym.findUnique({ where: { id: input.gymId }, select: { dodoSubscriptionId: true } });
+		if (gym?.dodoSubscriptionId) return { ok: false, error: "An existing billing subscription must be managed before starting another. Contact support." };
 	}
 
-	const productId = productIdFor(input.planKey);
-	if (!productId) {
-		await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
-		return { ok: false, error: `No payment product is configured for the ${plan.name} plan.` };
-	}
-	if (!input.email) {
-		await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
-		return { ok: false, error: "An email address is needed to take payment." };
-	}
+  const productId = productIdFor(input.planKey);
+  if (!productId) return { ok: false, error: `No payment product is configured for the ${plan.name} plan.` };
+  const reservation = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${input.userId} FOR UPDATE`;
+    const pending = await tx.platformOrder.findFirst({ where: { userId: input.userId, provider: "dodo", status: "PENDING" }, orderBy: { createdAt: "desc" } });
+    if (pending) return null;
+    const currentGym = input.gymId ? await tx.gym.findUnique({ where: { id: input.gymId }, select: { accessExpiresAt: true, dodoSubscriptionId: true } }) : null;
+    if (currentGym?.dodoSubscriptionId) return null;
+    return tx.platformOrder.create({ data: {
+      gymId: input.gymId ?? null, userId: input.userId, email: input.email,
+      kind: input.kind, tier: tierFor(input.planKey), billingCycle: input.planKey,
+      amount: orderValue(input.planKey), currency: "USD", status: "PENDING", provider: "dodo",
+      gymName: input.gymName, city: input.city,
+      meta: { ...(input.meta ?? {}), quotedAmount: orderValue(input.planKey), quotedCurrency: "USD",
+        baselineAccessExpiresAt: currentGym?.accessExpiresAt?.toISOString() ?? null } as Prisma.InputJsonValue,
+    }, select: { id: true } });
+  });
+  if (!reservation) return { ok: false, error: "A payment is already pending. Check its status or contact support before starting another." };
+  const order = reservation;
 
 	const appUrl = env.appUrl.replace(/\/$/, "");
 
@@ -104,58 +91,20 @@ export async function startPurchase(input: {
 			customer: { email: input.email, name: input.name ?? "" },
 			...checkoutLocalisation,
 			metadata: { orderId: order.id, planKey: input.planKey, ...(input.gymId ? { gymId: input.gymId } : {}) },
-			return_url: `${appUrl}${input.returnPath}?order=${order.id}`,
-		});
+			return_url: `${appUrl}/checkout/return?order=${order.id}`,
+		}, { idempotencyKey: order.id, maxRetries: 0, timeout: 10000 });
 		if (!session.checkout_url) {
-			await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
-			return { ok: false, error: "The payment page could not be opened. Please try again." };
+			return { ok: false, error: "Checkout could not be confirmed. Contact support before trying again." };
 		}
-		await db.platformOrder.update({
-			where: { id: order.id },
-			data: { meta: { ...(input.meta ?? {}), checkoutSessionId: session.session_id } as Prisma.InputJsonValue },
-		});
+    const checkoutOrigin = new URL(session.checkout_url);
+    if (checkoutOrigin.protocol !== "https:" || checkoutOrigin.username || checkoutOrigin.password) throw new Error("Invalid provider URL");
+    const handles = JSON.stringify({ checkoutSessionId: session.session_id });
+    await db.$executeRaw`UPDATE platform_orders SET meta = COALESCE(meta, '{}'::jsonb) || ${handles}::jsonb WHERE id = ${order.id}`;
+
 		paymentLog("info", "purchase.created", { orderId: order.id, kind: input.kind, sessionId: session.session_id });
 		return { ok: true, mode: "gateway", checkoutUrl: session.checkout_url, orderId: order.id };
 	} catch {
-		await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
 		paymentLog("error", "purchase.failed", { orderId: order.id, kind: input.kind });
-		return { ok: false, error: "We couldn't reach the payment provider. Please try again." };
+		return { ok: false, error: "Checkout confirmation is delayed. Contact support before starting another payment." };
 	}
-}
-
-export async function reissueFor(userId: string): Promise<void> {
-	const user = await db.user.findUnique({
-		where: { id: userId },
-		select: {
-			id: true,
-			email: true,
-			name: true,
-			role: true,
-			trainerProfile: { select: { id: true } },
-			clientProfile: { select: { id: true } },
-			gym: {
-				select: {
-					id: true,
-					name: true,
-					code: true,
-					tier: true,
-					accessExpiresAt: true,
-				},
-			},
-		},
-	});
-	if (!user) return;
-
-	await createSession({
-		userId: user.id,
-		email: user.email,
-		name: user.name,
-		role: user.role as Role,
-		profileId: user.trainerProfile?.id ?? user.clientProfile?.id ?? null,
-		gymId: user.gym?.id ?? null,
-		gymName: user.gym?.name ?? null,
-		gymCode: user.gym?.code ?? null,
-		gymTier: user.gym?.tier ?? null,
-		gymAccessExpiresAt: user.gym?.accessExpiresAt?.toISOString() ?? null,
-	});
 }

@@ -185,26 +185,6 @@ export async function purchaseAccessAction(
 
 		if (!result.ok) return { ok: false, error: result.error };
 
-		if (result.mode === "simulated") {
-			// Access really did change, so the token that gates it has gone stale.
-			const current = await getSession();
-			if (current) {
-				const gym = await db.gym.findUniqueOrThrow({
-					where: { id: session.gymId },
-					select: { tier: true, accessExpiresAt: true },
-				});
-				await createSession({
-					...current,
-					gymTier: gym.tier,
-					gymAccessExpiresAt:
-						gym.accessExpiresAt?.toISOString() ?? null,
-				});
-			}
-			revalidatePath("/gym/billing");
-			revalidatePath("/gym/dashboard");
-			return { ok: true, message: result.message };
-		}
-
 		// The browser goes to the gateway. Access is still exactly what it was.
 		return {
 			ok: true,

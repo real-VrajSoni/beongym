@@ -30,6 +30,11 @@ jobs:
       APP_URL: http://localhost:3400
       CHECK_BASE_URL: http://localhost:3400
       NODE_ENV: development
+      DODO_PAYMENTS_API_KEY: fixture-no-network-api
+      DODO_PAYMENTS_WEBHOOK_KEY: whsec_YmVvbmd5bS13ZWJob29rLXRlc3Qtc2VjcmV0
+      DODO_PAYMENTS_ENVIRONMENT: test_mode
+      DODO_PRODUCT_ID_MONTHLY: pdt_test_monthly
+      DODO_PRODUCT_ID_ANNUAL: pdt_test_annual
 
     steps:
       - name: Check out repository
@@ -81,3 +86,9 @@ jobs:
 
       - name: Run tenant isolation integration test
         run: npm run check:isolation
+
+      - name: Run signed billing and route regressions
+        run: npm run check:webhook && npm run check:routes && npm run check:globe
+
+      - name: Verify checkout fails closed without a gateway
+        run: node --conditions=react-server --import tsx scripts/checkout-safety-check.ts

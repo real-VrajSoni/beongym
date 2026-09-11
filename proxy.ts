@@ -49,6 +49,11 @@ const PAID_PREFIXES = [
 
 export default async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
+	if (pathname === "/start/checkout/return") {
+		const url = request.nextUrl.clone();
+		url.pathname = "/checkout/return";
+		return privately(NextResponse.redirect(url));
+	}
 	const token = request.cookies.get(SESSION_COOKIE)?.value;
 	const session = token ? await verifySession(token) : null;
 

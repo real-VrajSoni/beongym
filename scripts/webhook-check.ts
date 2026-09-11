@@ -1,351 +1,136 @@
-/**
- * Dodo webhook tests:
- *   npm run check:webhook        (needs the dev server and a database)
- *
- * Drives the real endpoint over HTTP with real Standard Webhooks signatures,
- * rather than calling the handler directly. The things most likely to be wrong
- * here — a re-serialised body, a header read under the wrong name, a claim
- * committed before its effects — only show up through the whole path.
- *
- * A fixture gym is created and removed at the end, so this leaves the database
- * as it found it.
- */
+/** Signed HTTP regression suite. Uses only explicit disposable local fixtures. */
 import "dotenv/config";
-import { assertDisposableDatabase } from "./disposable-database";
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Webhook } from "standardwebhooks";
+import { SignJWT } from "jose";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
-import { hasAccess } from "../lib/platform-plans";
-
-const BASE = process.env.CHECK_BASE_URL ?? "http://localhost:3400";
-const URL_PATH = "/api/webhooks/dodo";
-const SECRET =
-  process.env.DODO_PAYMENTS_WEBHOOK_KEY?.trim() ||
-  "whsec_" + Buffer.from("beongym-webhook-test-secret").toString("base64");
-
-type Check = { name: string; pass: boolean; detail: string };
-const checks: Check[] = [];
-const add = (name: string, pass: boolean, detail = "") => checks.push({ name, pass, detail });
-
-const wh = new Webhook(SECRET.replace(/^whsec_/, ""));
-
-/** Sign and POST a payload the way Dodo does. */
-async function send(
-  body: unknown,
-  opts: { id?: string; omit?: string[]; corrupt?: boolean; timestamp?: Date } = {},
-) {
-  const raw = JSON.stringify(body);
-  const id = opts.id ?? `evt_${randomUUID()}`;
-  const timestamp = opts.timestamp ?? new Date();
-  let signature = wh.sign(id, timestamp, raw);
-  if (opts.corrupt) signature = signature.slice(0, -6) + "AAAAAA";
-
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    "webhook-id": id,
-    "webhook-signature": signature,
-    "webhook-timestamp": String(Math.floor(timestamp.getTime() / 1000)),
-  };
-  for (const h of opts.omit ?? []) delete headers[h];
-
-  const res = await fetch(BASE + URL_PATH, { method: "POST", headers, body: raw });
-  let json: Record<string, unknown> = {};
-  try {
-    json = (await res.json()) as Record<string, unknown>;
-  } catch {
-    /* a non-JSON body is itself a result worth reporting */
-  }
-  return { status: res.status, json, id };
-}
-
-const subEvent = (type: string, sub: string, extra: Record<string, unknown> = {}) => ({
-  business_id: "bus_test",
-  type,
-  timestamp: new Date().toISOString(),
-  data: {
-    payload_type: "Subscription",
-    subscription_id: sub,
-    product_id: process.env.DODO_PRODUCT_ID_MONTHLY ?? "pdt_test_monthly",
-    status: "active",
-    currency: "USD",
-    recurring_pre_tax_amount: 2000,
-    customer: {
-      customer_id: "cus_test_beongym",
-      email: "webhook-fixture@beongym.test",
-      name: "Fixture",
-    },
-    ...extra,
-  },
-});
-
-const payEvent = (type: string, pay: string, extra: Record<string, unknown> = {}) => ({
-  business_id: "bus_test",
-  type,
-  timestamp: new Date().toISOString(),
-  data: {
-    payload_type: "Payment",
-    payment_id: pay,
-    product_id: process.env.DODO_PRODUCT_ID_MONTHLY ?? "pdt_test_monthly",
-    status: type === "payment.succeeded" ? "succeeded" : "failed",
-    currency: "USD",
-    total_amount: 2000,
-    customer: {
-      customer_id: "cus_test_beongym",
-      email: "webhook-fixture@beongym.test",
-      name: "Fixture",
-    },
-    ...extra,
-  },
-});
+import { assertDisposableDatabase } from "./disposable-database";
 
 async function main() {
   assertDisposableDatabase();
-  const db = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
-  });
-
-  const code = `WHTEST-${Date.now().toString().slice(-4)}`;
-  const subId = `sub_test_${randomUUID().slice(0, 8)}`;
-
-  const gym = await db.gym.create({
-    data: {
-      code,
-      name: "Webhook Fixture Gym",
-      city: "Oslo",
-      country: "Norway",
-      currency: "NOK",
-      status: "TRIAL",
-      tier: "PRO",
-      accessExpiresAt: null,
-      listed: false,
+  const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
+  const wh = new Webhook(process.env.DODO_PAYMENTS_WEBHOOK_KEY!);
+  const base = process.env.CHECK_BASE_URL!;
+  const prefix = `test_${randomUUID()}`;
+  const subId = `${prefix}_sub`, payId = `${prefix}_pay`, customerId = `${prefix}_customer`;
+  const now = Date.now();
+  let tick = 0, passed = 0;
+  const seen: string[] = [];
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const check = (label: string, value: unknown) => { assert.ok(value, label); passed++; console.log(`ok ${label}`); };
+  const user = await db.user.create({ data: { name: "Billing Fixture", email: `${prefix}@example.test`, passwordHash: "fixture-cannot-log-in", role: "PROSPECT" } });
+  const order = await db.platformOrder.create({ data: {
+    userId: user.id, email: user.email, gymName: "Billing Fixture", provider: "dodo", status: "PENDING",
+    kind: "CHECKOUT", tier: "PRO", billingCycle: "MONTHLY", amount: 20, currency: "USD",
+    meta: { checkoutSessionId: `${prefix}_checkout` },
+  } });
+  const meta = { orderId: order.id, planKey: "MONTHLY" };
+  const subEvent = (status = "active", extra: Record<string, unknown> = {}, type = "subscription.active") => ({
+    type, timestamp: iso(now + ++tick * 1000), data: {
+      subscription_id: subId, product_id: process.env.DODO_PRODUCT_ID_MONTHLY, status,
+      customer: { customer_id: customerId, email: user.email }, metadata: meta,
+      previous_billing_date: iso(now - 86400000), next_billing_date: iso(now + 60000), ...extra,
     },
   });
-  const meta = { gymId: gym.id, planKey: "MONTHLY" };
-  const reload = () =>
-    db.gym.findUniqueOrThrow({
-      where: { id: gym.id },
-      select: {
-        accessExpiresAt: true,
-        billingStatus: true,
-        tier: true,
-        status: true,
-        dodoSubscriptionId: true,
-      },
-    });
-
+  const payEvent = (id = payId, status = "succeeded", extra: Record<string, unknown> = {}) => ({
+    type: `payment.${status}`, timestamp: iso(now + ++tick * 1000), data: {
+      payment_id: id, subscription_id: subId, status, currency: "USD", total_amount: 2000,
+      created_at: iso(now - 60000), checkout_session_id: `${prefix}_checkout`,
+      customer: { customer_id: customerId }, metadata: meta, ...extra,
+    },
+  });
+  async function send(body: unknown, options: { id?: string; corrupt?: boolean; age?: number; missing?: boolean } = {}) {
+    const id = options.id ?? `${prefix}_event_${randomUUID()}`; seen.push(id);
+    const raw = JSON.stringify(body), stamp = new Date(Date.now() + (options.age ?? 0));
+    const signature = wh.sign(id, stamp, raw);
+    const res = await fetch(`${base}/api/webhooks/dodo`, { method: "POST", body: raw, headers: options.missing ? {} : {
+      "content-type": "application/json", "webhook-id": id, "webhook-timestamp": String(Math.floor(stamp.getTime() / 1000)),
+      "webhook-signature": options.corrupt ? "v1,invalid" : signature,
+    } });
+    return { status: res.status, body: await res.json() };
+  }
+  const gym = async () => db.gym.findFirst({ where: { users: { some: { id: user.id } } } });
   try {
-    console.log(`\nfixture gym ${code}  (${gym.id})\n`);
-
-    /* 1. missing headers */
-    for (const h of ["webhook-id", "webhook-signature", "webhook-timestamp"]) {
-      const r = await send(subEvent("subscription.active", subId, { metadata: meta }), {
-        omit: [h],
-      });
-      add(`missing ${h} -> 400`, r.status === 400, `got ${r.status}`);
-    }
-
-    /* 2. invalid signature */
-    const bad = await send(subEvent("subscription.active", subId, { metadata: meta }), {
-      corrupt: true,
-    });
-    add("tampered signature -> 401", bad.status === 401, `got ${bad.status}`);
-    add(
-      "tampered signature granted nothing",
-      (await reload()).accessExpiresAt === null,
-      "access still null",
-    );
-
-    /* 3. a body that does not match its signature */
-    const rawMismatch = await (async () => {
-      const good = subEvent("subscription.active", subId, { metadata: meta });
-      const id = `evt_${randomUUID()}`;
-      const ts = new Date();
-      const sig = wh.sign(id, ts, JSON.stringify(good));
-      const tampered = JSON.stringify({
-        ...good,
-        data: { ...good.data, recurring_pre_tax_amount: 1 },
-      });
-      const res = await fetch(BASE + URL_PATH, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "webhook-id": id,
-          "webhook-signature": sig,
-          "webhook-timestamp": String(Math.floor(ts.getTime() / 1000)),
-        },
-        body: tampered,
-      });
-      return res.status;
-    })();
-    add("body altered after signing -> 401", rawMismatch === 401, `got ${rawMismatch}`);
-
-    /* 4. activation */
-    const activate = await send(
-      subEvent("subscription.active", subId, {
-        metadata: meta,
-        next_billing_date: new Date(Date.now() + 30 * 864e5).toISOString(),
-      }),
-    );
-    add("subscription.active -> 2xx", activate.status === 200, `got ${activate.status}`);
-    let state = await reload();
-    add(
-      "activation granted access",
-      hasAccess(state.tier, state.accessExpiresAt),
-      String(state.accessExpiresAt),
-    );
-    add(
-      "activation set billingStatus ACTIVE",
-      state.billingStatus === "ACTIVE",
-      state.billingStatus,
-    );
-    add(
-      "activation stored the subscription id",
-      state.dodoSubscriptionId === subId,
-      String(state.dodoSubscriptionId),
-    );
-    add(
-      "activation wrote one order",
-      (await db.platformOrder.count({ where: { gymId: gym.id, status: "PAID" } })) === 1,
-      "",
-    );
-
-    /* 5. duplicate delivery */
-    const first = await send(subEvent("subscription.renewed", subId, { metadata: meta }));
-    const afterFirst = (await reload()).accessExpiresAt;
-    const again = await send(subEvent("subscription.renewed", subId, { metadata: meta }), {
-      id: first.id,
-    });
-    const afterSecond = (await reload()).accessExpiresAt;
-    add("duplicate webhook-id -> 2xx", again.status === 200, `got ${again.status}`);
-    add(
-      "duplicate reported as duplicate",
-      again.json.duplicate === true,
-      JSON.stringify(again.json),
-    );
-    add(
-      "duplicate did not extend access twice",
-      String(afterFirst) === String(afterSecond),
-      `${afterFirst} vs ${afterSecond}`,
-    );
-
-    /* 6. renewal extends */
-    const before = (await reload()).accessExpiresAt!;
-    await send(
-      subEvent("subscription.renewed", subId, {
-        metadata: meta,
-        next_billing_date: new Date(before.getTime() + 30 * 864e5).toISOString(),
-      }),
-    );
-    const after = (await reload()).accessExpiresAt!;
-    add("renewal moved the paid-through date forward", after > before, `${before} -> ${after}`);
-
-    /* 7. payment failure must not touch access */
-    const paidThrough = (await reload()).accessExpiresAt;
-    const fail = await send(
-      payEvent("payment.failed", `pay_fail_${randomUUID().slice(0, 8)}`, { metadata: meta }),
-    );
-    state = await reload();
-    add("payment.failed -> 2xx", fail.status === 200, `got ${fail.status}`);
-    add(
-      "payment.failed left the paid period alone",
-      String(state.accessExpiresAt) === String(paidThrough),
-      "unchanged",
-    );
-    add(
-      "payment.failed recorded a FAILED order",
-      (await db.platformOrder.count({ where: { gymId: gym.id, status: "FAILED" } })) === 1,
-      "",
-    );
-
-    /* 8. on hold keeps the paid period */
-    await send(subEvent("subscription.on_hold", subId, { metadata: meta }));
-    state = await reload();
-    add("on_hold set ON_HOLD", state.billingStatus === "ON_HOLD", state.billingStatus);
-    add(
-      "on_hold kept access to the paid date",
-      String(state.accessExpiresAt) === String(paidThrough),
-      "unchanged",
-    );
-
-    /* 9. cancellation keeps access to the end of the paid period */
-    await send(subEvent("subscription.cancelled", subId, { metadata: meta }));
-    state = await reload();
-    add("cancelled set CANCELLED", state.billingStatus === "CANCELLED", state.billingStatus);
-    add(
-      "cancelled did NOT revoke access early",
-      hasAccess(state.tier, state.accessExpiresAt),
-      `paid through ${state.accessExpiresAt}`,
-    );
-
-    /* 10. expiry, with the period already run out */
-    await db.gym.update({
-      where: { id: gym.id },
-      data: { accessExpiresAt: new Date(Date.now() - 864e5) },
-    });
-    await send(subEvent("subscription.expired", subId, { metadata: meta }));
-    state = await reload();
-    add("expired set EXPIRED", state.billingStatus === "EXPIRED", state.billingStatus);
-    add(
-      "expired leaves the gym without access",
-      !hasAccess(state.tier, state.accessExpiresAt),
-      String(state.accessExpiresAt),
-    );
-
-    /* 11. resolution without metadata, via the stored subscription id */
-    const orphan = await send(subEvent("subscription.renewed", subId, {}));
-    add(
-      "resolves by stored subscription id when metadata is absent",
-      orphan.json.handled === true,
-      JSON.stringify(orphan.json),
-    );
-
-    /* 12. an event for nobody is acknowledged, not retried forever.
-       A different customer as well as a different subscription: sharing the
-       fixture's customer_id resolves through the dodoCustomerId fallback, which
-       is the chain working rather than a miss. */
-    const nobody = await send(
-      subEvent("subscription.renewed", `sub_unknown_${randomUUID().slice(0, 6)}`, {
-        customer: {
-          customer_id: `cus_unknown_${randomUUID().slice(0, 6)}`,
-          email: `nobody-${randomUUID().slice(0, 6)}@beongym.test`,
-          name: "Nobody",
-        },
-      }),
-    );
-    add("unknown subscription -> 2xx", nobody.status === 200, `got ${nobody.status}`);
-    add(
-      "unknown subscription not treated as handled",
-      nobody.json.handled === false,
-      JSON.stringify(nobody.json),
-    );
-
-    /* 13. GET is refused */
-    const get = await fetch(BASE + URL_PATH);
-    add("GET -> 405", get.status === 405, `got ${get.status}`);
+    check("missing headers rejected", (await send({}, { missing: true })).status === 400);
+    check("forged signature rejected", (await send(subEvent(), { corrupt: true })).status === 401);
+    check("stale delivery rejected", (await send(subEvent(), { age: -600000 })).status === 401);
+    check("malformed signed event rejected", (await send({ type: "payment.succeeded", data: {} })).status === 400);
+    check("GET is not accepted", (await fetch(`${base}/api/webhooks/dodo`)).status === 405);
+    const firstPayment = payEvent(); const retryId = `${prefix}_retry`;
+    check("payment before subscription is retryable", (await send(firstPayment, { id: retryId })).status === 503);
+    check("failed event claim rolled back", !(await db.webhookEvent.findUnique({ where: { eventId: retryId } })));
+    check("activation accepted", (await send(subEvent())).status === 200);
+    check("activation alone creates no paid gym", !(await gym()));
+    check("initial payment must match hosted checkout", (await send(payEvent(payId, "succeeded", { checkout_session_id: "another-checkout" }))).status === 503);
+    await db.user.update({ where: { id: user.id }, data: { isActive: false } });
+    check("inactive buyer cannot be provisioned", (await send(firstPayment, { id: retryId })).status === 503 && !(await gym()));
+    await db.user.update({ where: { id: user.id }, data: { isActive: true } });
+    const concurrent = await Promise.all([send(firstPayment, { id: retryId }), send(firstPayment), send(firstPayment)]);
+    check("concurrent payment deliveries all complete safely", concurrent.every((item) => item.status === 200));
+    check("same failed event retry succeeds after binding", concurrent[0].status === 200);
+    const original = await gym(); check("payment and period provision a gym", original?.dodoSubscriptionId === subId);
+    const gymId = original!.id, firstExpiry = original!.accessExpiresAt!.getTime();
+    const tokenFor = (userId: string) => new SignJWT({ userId, role: "PROSPECT", name: "Billing fixture" })
+      .setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h")
+      .sign(new TextEncoder().encode(process.env.AUTH_SECRET!));
+    const ownReturn = await fetch(`${base}/checkout/return?order=${order.id}`, { headers: { cookie: `apex_session=${await tokenFor(user.id)}` } });
+    check("own paid return renders without cookie mutation", ownReturn.status === 200 && (await ownReturn.text()).includes("Your payment is confirmed") && !ownReturn.headers.has("set-cookie"));
+    const stranger = await db.user.findFirstOrThrow({ where: { id: { not: user.id }, role: "PROSPECT" } });
+    const foreignReturn = await fetch(`${base}/checkout/return?order=${order.id}`, { headers: { cookie: `apex_session=${await tokenFor(stranger.id)}` } });
+    check("another buyer cannot read order details", !(await foreignReturn.text()).includes("Order " + order.id.slice(-8)));
+    check("receipt stores actual currency/amount", (await db.platformOrder.findUniqueOrThrow({ where: { id: order.id } })).amount.toString() === "20");
+    check("same event reports duplicate", (await send(firstPayment, { id: retryId })).body.duplicate === true);
+    check("new event ID for same payment is harmless", (await send(payEvent())).status === 200);
+    check("same-period renewal accepted", (await send(subEvent("active", {}, "subscription.renewed"))).status === 200);
+    check("duplicate events do not extend access", (await gym())?.accessExpiresAt?.getTime() === firstExpiry);
+    check("one payment has one ledger row", await db.billingPayment.count({ where: { subscriptionId: subId } }) === 1);
+    check("product mismatch rejected", (await send(subEvent("active", { product_id: "pdt_wrong" }))).status === 503);
+    check("a second subscription cannot bind the same order", (await send(subEvent("active", { subscription_id: `${prefix}_second` }))).status === 503);
+    check("customer mismatch rejected", (await send(payEvent(`${prefix}_bad`, "succeeded", { customer: { customer_id: "other" } }))).status === 503);
+    check("gym metadata cannot redirect payment", (await send(payEvent(`${prefix}_bad2`, "succeeded", { metadata: { ...meta, gymId: "other-gym" } }))).status === 503);
+    check("failed payment recorded", (await send(payEvent(`${prefix}_failed`, "failed"))).status === 200);
+    check("failure grants no access", (await gym())?.accessExpiresAt?.getTime() === firstExpiry);
+    const renewalStart = now + 60000, renewalEnd = now + 30 * 86400000;
+    const period = { previous_billing_date: iso(renewalStart), next_billing_date: iso(renewalEnd) };
+    check("next period waits for payment", (await send(subEvent("active", period, "subscription.renewed"))).status === 200);
+    check("renewal notice alone does not extend", (await gym())?.accessExpiresAt?.getTime() === firstExpiry);
+    const renewalPay = `${prefix}_renewal`;
+    check("renewal payment accepted", (await send(payEvent(renewalPay, "succeeded", { created_at: iso(renewalStart + 1000), currency: "JPY" }))).status === 200);
+    check("verified renewal extends exactly to provider date", (await gym())?.accessExpiresAt?.getTime() === renewalEnd);
+    const renewal = await db.billingPayment.findUniqueOrThrow({ where: { id: renewalPay }, include: { receipt: true } });
+    check("JPY receipt preserves zero-decimal currency", renewal.receipt?.currency === "JPY" && renewal.receipt.amount.toString() === "2000");
+    check("renewal has separate receipt", renewal.receiptId !== order.id);
+    check("cancellation preserves paid period", (await send(subEvent("cancelled", period, "subscription.cancelled"))).status === 200 && (await gym())?.accessExpiresAt?.getTime() === renewalEnd);
+    const stale = subEvent("active", period); stale.timestamp = iso(now - 1000);
+    check("late activation cannot reverse cancellation", (await send(stale)).status === 200 && (await gym())?.billingStatus === "CANCELLED");
+    await db.gym.update({ where: { id: gymId }, data: { status: "SUSPENDED" } });
+    check("billing cannot undo administrative suspension", (await send(subEvent("active", period))).status === 200 && (await gym())?.status === "SUSPENDED");
+    const adjustment = (id: string, type: string, data: Record<string, unknown>) => ({ type, timestamp: iso(now + ++tick * 1000), data: { payment_id: renewalPay, currency: "JPY", ...data, ...(type.startsWith("refund") ? { refund_id: id } : { dispute_id: id }) } });
+    const partial = adjustment(`${prefix}_partial`, "refund.succeeded", { status: "succeeded", amount: 500, is_partial: true });
+    check("partial refund recorded without destroying receipt", (await send(partial)).status === 200 && (await gym())?.accessExpiresAt?.getTime() === renewalEnd);
+    check("duplicate refund ID is idempotent", (await send(partial)).status === 200 && await db.billingAdjustment.count({ where: { paymentId: renewalPay } }) === 1);
+    const dispute = `${prefix}_dispute`;
+    check("open dispute removes its access grant", (await send(adjustment(dispute, "dispute.opened", { dispute_status: "dispute_opened" }))).status === 200 && (await gym())?.accessExpiresAt?.getTime() === firstExpiry);
+    check("won dispute restores paid access", (await send(adjustment(dispute, "dispute.won", { dispute_status: "dispute_won" }))).status === 200 && (await gym())?.accessExpiresAt?.getTime() === renewalEnd);
+    check("full refund revokes only its paid period", (await send(adjustment(`${prefix}_remaining`, "refund.succeeded", { status: "succeeded", amount: 1500 }))).status === 200 && (await gym())?.accessExpiresAt?.getTime() === firstExpiry);
+    check("refunded receipt remains historical", (await db.platformOrder.findUniqueOrThrow({ where: { id: renewal.receiptId! } })).status === "REFUNDED");
+    check("replayed success cannot undo refund", (await send(payEvent(renewalPay, "succeeded", { created_at: iso(renewalStart + 1000), currency: "JPY" }))).status === 200 && (await gym())?.accessExpiresAt?.getTime() === firstExpiry);
+    const journal = await db.webhookEvent.findUniqueOrThrow({ where: { eventId: retryId } });
+    check("journal omits customer personal data", !JSON.stringify(journal.payload).includes(user.email!));
+    check("unknown subscription requires reconciliation", (await send(subEvent("active", { subscription_id: `${prefix}_unknown`, metadata: {} }))).status === 503);
+    console.log(`\n${passed}/${passed} signed webhook checks passed`);
   } finally {
-    const orders = await db.platformOrder.findMany({
-      where: { gymId: gym.id },
-      select: { id: true },
-    });
-    await db.platformOrder.deleteMany({ where: { id: { in: orders.map((o) => o.id) } } });
-    await db.webhookEvent.deleteMany({
-      where: { payload: { path: ["data", "metadata", "gymId"], equals: gym.id } },
-    });
-    await db.gym.delete({ where: { id: gym.id } });
+    const owned = await gym();
+    await db.billingAdjustment.deleteMany({ where: { payment: { subscriptionId: subId } } });
+    await db.billingPayment.deleteMany({ where: { subscriptionId: subId } });
+    await db.billingSubscription.deleteMany({ where: { orderId: order.id } });
+    await db.platformOrder.deleteMany({ where: { userId: user.id } });
+    if (owned) await db.gym.delete({ where: { id: owned.id } });
+    else await db.user.delete({ where: { id: user.id } });
+    await db.webhookEvent.deleteMany({ where: { eventId: { in: seen } } });
     await db.$disconnect();
   }
-
-  console.log("");
-  for (const c of checks) {
-    console.log(`${c.pass ? "  ok  " : "  FAIL"} ${c.name}${c.pass ? "" : `  — ${c.detail}`}`);
-  }
-  const failed = checks.filter((c) => !c.pass);
-  console.log(`\n${checks.length - failed.length}/${checks.length} passed`);
-  process.exit(failed.length ? 1 : 0);
 }
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main().catch((error) => { console.error(error instanceof assert.AssertionError ? error.message : "Billing regression failed; inspect local server's safe reconciliation logs."); process.exit(1); });

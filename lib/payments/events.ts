@@ -1,463 +1,189 @@
 import "server-only";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import type {
-	BillingStatus,
-	OrderKind,
-	OrderStatus,
-} from "@/lib/generated/prisma/enums";
-import { extendAccess, planByKey, tierFor } from "@/lib/platform-plans";
+import { tierFor } from "@/lib/platform-plans";
 import { productIdFor } from "./dodo";
-import { paymentLog } from "./log";
 import { fulfilOrder } from "./fulfil";
+import { decimalAmount, receiptEligible, type DodoEvent, type DodoPayload } from "./policy";
 
-/**
- * What a verified Dodo event does to a gym.
- *
- * Two rules run through all of it, and everything else follows from them.
- *
- * **Access is a date, not a status.** A gym may use the workspace when
- * `accessExpiresAt` is in the future — that is what `hasAccess()` asks, in the
- * proxy, in `requirePaidStaff` and at member sign-in. Nothing here changes that
- * check. A cancellation sets `billingStatus` and leaves the date alone, so a
- * gym that cancels on day 2 of a month keeps the other 28 days it paid for.
- * Conflating the two would cut people off at the moment they clicked cancel,
- * which is neither what they bought nor what our refund policy promises.
- *
- * **Only money extends the date.** `subscription.active` and
- * `subscription.renewed` move `accessExpiresAt`; nothing else does. A failed
- * payment, a hold and an update all leave it exactly where it was, so a gym
- * mid-dunning keeps what it has already paid for and gains nothing it has not.
- */
-
-/** A Prisma transaction client. Every handler writes through this, never `db`. */
+export type { DodoEvent, DodoPayload } from "./policy";
 export type Tx = Prisma.TransactionClient;
+export type HandledResult = { handled: boolean; gymId: string | null; note: string };
+const result = (note: string, gymId: string | null = null): HandledResult => ({ handled: true, gymId, note });
 
-/** The subset of a Dodo payload these handlers rely on. */
-export type DodoPayload = {
-	payload_type?: string;
-	subscription_id?: string;
-	payment_id?: string;
-	product_id?: string;
-	status?: string;
-	currency?: string;
-	total_amount?: number;
-	recurring_pre_tax_amount?: number;
-	next_billing_date?: string;
-	previous_billing_date?: string;
-	cancel_at_next_billing_date?: boolean;
-	customer?: { customer_id?: string; email?: string; name?: string };
-	metadata?: Record<string, string>;
-};
-
-export type DodoEvent = { type: string; data: DodoPayload };
-
-/** Dodo sends money in the smallest unit; our orders are in whole currency. */
-function fromMinorUnits(amount: number | undefined): number {
-	return typeof amount === "number" ? amount / 100 : 0;
-}
-
-/**
- * Which of our plans a Dodo product is.
- *
- * By product id where it is configured, because that is the only mapping that
- * cannot be wrong. The metadata fallback exists for events replayed from the
- * dashboard, where the cart may be absent.
- */
 export function planKeyFor(payload: DodoPayload): "MONTHLY" | "ANNUAL" | null {
-	const meta = payload.metadata?.planKey;
-	const metadataPlan = meta === "ANNUAL" || meta === "MONTHLY" ? meta : null;
-	if (!payload.product_id) return metadataPlan;
-
-	const productPlan =
-		payload.product_id === productIdFor("MONTHLY")
-			? "MONTHLY"
-			: payload.product_id === productIdFor("ANNUAL")
-				? "ANNUAL"
-				: null;
-	if (!productPlan) return null;
-	return metadataPlan && metadataPlan !== productPlan ? null : productPlan;
+  const key = payload.product_id === productIdFor("MONTHLY") ? "MONTHLY" :
+    payload.product_id === productIdFor("ANNUAL") ? "ANNUAL" : null;
+  return key && (!payload.metadata?.planKey || payload.metadata.planKey === key) ? key : null;
 }
 
-/**
- * Which gym an event is about.
- *
- * A webhook carries Dodo's identifiers and nothing of ours except what we put
- * into the checkout metadata, so this tries four routes in descending order of
- * certainty. Metadata first, because we wrote it. Then the durable links stored
- * on the gym, which survive a payload that has lost its metadata — a dashboard
- * replay, for instance. Email is last and deliberately narrow: it matches only
- * an owner, never a member, so a member who happens to share an address with
- * their gym owner can never resolve to a gym.
- */
-export async function resolveGymId(
-	tx: Tx,
-	payload: DodoPayload,
-): Promise<string | null> {
-	const meta = payload.metadata ?? {};
-
-	if (meta.gymId) {
-		const gym = await tx.gym.findUnique({
-			where: { id: meta.gymId },
-			select: { id: true },
-		});
-		if (gym) return gym.id;
-	}
-
-	if (meta.orderId) {
-		const order = await tx.platformOrder.findUnique({
-			where: { id: meta.orderId },
-			select: { gymId: true },
-		});
-		if (order?.gymId) return order.gymId;
-	}
-
-	if (payload.subscription_id) {
-		const gym = await tx.gym.findUnique({
-			where: { dodoSubscriptionId: payload.subscription_id },
-			select: { id: true },
-		});
-		if (gym) return gym.id;
-	}
-
-	if (payload.customer?.customer_id) {
-		const gym = await tx.gym.findFirst({
-			where: { dodoCustomerId: payload.customer.customer_id },
-			select: { id: true },
-		});
-		if (gym) return gym.id;
-	}
-
-	if (payload.customer?.email) {
-		const owner = await tx.user.findFirst({
-			where: {
-				email: payload.customer.email.toLowerCase(),
-				role: "GYM_OWNER",
-			},
-			select: { gymId: true },
-		});
-		if (owner?.gymId) return owner.gymId;
-	}
-
-	return null;
+async function lock(tx: Tx, subscriptionId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`billing:${subscriptionId}`}, 0))`;
 }
 
-/**
- * Record the money, once.
- *
- * Keyed on Dodo's payment id, which is unique in our schema — so a redelivered
- * event that slips past the webhook-level check still cannot write a second
- * order row for one payment. `upsert` rather than `create` for that reason: the
- * second attempt updates a row it already wrote instead of throwing.
- */
-async function recordOrder(
-	tx: Tx,
-	gymId: string,
-	payload: DodoPayload,
-	opts: {
-		status: OrderStatus;
-		kind: OrderKind;
-		planKey: "MONTHLY" | "ANNUAL";
-	},
-): Promise<void> {
-	const gym = await tx.gym.findUnique({
-		where: { id: gymId },
-		select: {
-			name: true,
-			city: true,
-			users: {
-				where: { role: "GYM_OWNER" },
-				select: { id: true },
-				take: 1,
-			},
-		},
-	});
-	if (!gym) return;
-
-	const plan = planByKey(opts.planKey);
-	const amount =
-		fromMinorUnits(
-			payload.total_amount ?? payload.recurring_pre_tax_amount,
-		) || plan.price;
-	const ref = payload.payment_id ?? payload.subscription_id;
-	if (!ref) return;
-
-	// Webhooks can be delivered out of order. Once a payment reference has been
-	// verified as paid, no subsequent non-paid event may downgrade that receipt or
-	// make the return page tell a customer their successful payment failed.
-	const existing = await tx.platformOrder.findUnique({
-		where: { providerRef: ref },
-		select: { status: true },
-	});
-	if (existing?.status === "PAID" && opts.status !== "PAID") return;
-
-	const common = {
-		gymId,
-		userId: gym.users[0]?.id ?? null,
-		kind: opts.kind,
-		tier: tierFor(opts.planKey),
-		billingCycle: opts.planKey,
-		amount,
-		currency: (payload.currency ?? "USD").toUpperCase(),
-		status: opts.status,
-		provider: "dodo",
-		gymName: gym.name,
-		city: gym.city,
-		paidAt: opts.status === "PAID" ? new Date() : null,
-		meta: {
-			dodoSubscriptionId: payload.subscription_id ?? null,
-			dodoPaymentId: payload.payment_id ?? null,
-			dodoProductId: payload.product_id ?? null,
-		} as Prisma.InputJsonValue,
-	};
-
-	await tx.platformOrder.upsert({
-		where: { providerRef: ref },
-		create: { ...common, providerRef: ref },
-		update: { status: opts.status, amount, paidAt: common.paidAt },
-	});
+async function subscriptionEvent(tx: Tx, event: DodoEvent) {
+  const p = event.data;
+  if (!p.subscription_id || !p.customer || !p.status) throw new Error("Incomplete subscription event");
+  await lock(tx, p.subscription_id);
+  const existing = await tx.billingSubscription.findUnique({ where: { id: p.subscription_id } });
+  const orderId = existing?.orderId ?? p.metadata?.orderId;
+  if (!orderId) throw new Error("Subscription requires reconciliation to a checkout order");
+  // Lock the source order too: two different subscription IDs must not bind it.
+  await tx.$queryRaw`SELECT id FROM platform_orders WHERE id = ${orderId} FOR UPDATE`;
+  const order = await tx.platformOrder.findUnique({ where: { id: orderId } });
+  if (!order || order.provider !== "dodo") throw new Error("Checkout order not available");
+  const orderMeta = (order.meta ?? {}) as Record<string, unknown>;
+  // Legacy subscriptions need an operator-verified ledger import. Never erase
+  // their paid-through date merely because the new ledger starts empty.
+  if (!existing && orderMeta.fulfilledAt) throw new Error("Legacy subscription requires verified ledger migration");
+  const plan = planKeyFor(p);
+  if (!plan || plan !== order.billingCycle ||
+    (p.metadata?.orderId && p.metadata.orderId !== order.id) ||
+    (p.metadata?.gymId && p.metadata.gymId !== order.gymId) ||
+    (existing && existing.customerId !== p.customer.customer_id)) throw new Error("Subscription binding mismatch");
+  const bound = await tx.billingSubscription.findUnique({ where: { orderId } });
+  if (bound && bound.id !== p.subscription_id) throw new Error("Checkout already has a subscription");
+  const eventAt = new Date(event.timestamp);
+  // Never let an older activation overwrite a cancellation or changed period.
+  const terminal = ["cancelled", "expired", "failed", "on_hold"];
+  if (existing && (eventAt < existing.eventAt || (eventAt.getTime() === existing.eventAt.getTime() &&
+    (!terminal.includes(p.status) || terminal.includes(existing.status))))) return reconcile(tx, existing.id);
+  const periodStart = p.previous_billing_date ? new Date(p.previous_billing_date) : null;
+  const periodEnd = p.next_billing_date ? new Date(p.next_billing_date) : null;
+  if (p.status === "active" && (!periodStart || !periodEnd || periodEnd <= periodStart)) throw new Error("Verified billing period required");
+  await tx.billingSubscription.upsert({
+    where: { id: p.subscription_id },
+    create: { id: p.subscription_id, orderId, productId: p.product_id!, customerId: p.customer.customer_id, status: p.status, eventAt, periodStart, periodEnd },
+    update: { status: p.status, eventAt, periodStart, periodEnd },
+  });
+  return reconcile(tx, p.subscription_id);
 }
 
-/** Store the gateway's ids on the gym so a later event can find it without metadata. */
-async function link(
-	tx: Tx,
-	gymId: string,
-	payload: DodoPayload,
-	status: BillingStatus,
-) {
-	await tx.gym.update({
-		where: { id: gymId },
-		data: {
-			dodoCustomerId: payload.customer?.customer_id ?? undefined,
-			dodoSubscriptionId: payload.subscription_id ?? undefined,
-			billingStatus: status,
-			billingUpdatedAt: new Date(),
-		},
-	});
+async function paymentEvent(tx: Tx, event: DodoEvent) {
+  const p = event.data;
+  if (!p.subscription_id || !p.payment_id || !p.customer || !p.status || !p.currency ||
+    p.total_amount == null || !p.created_at) throw new Error("Incomplete payment event");
+  await lock(tx, p.subscription_id);
+  const subscription = await tx.billingSubscription.findUnique({ where: { id: p.subscription_id }, include: { order: true } });
+  // 503 rolls back the event claim. The same payment event can retry after the
+  // subscription event arrives; no browser state or guessed date grants access.
+  if (!subscription) throw new Error("Awaiting verified subscription binding");
+  const order = subscription.order;
+  const meta = (order.meta ?? {}) as Record<string, unknown>;
+  if (subscription.customerId !== p.customer.customer_id ||
+    (p.metadata?.orderId && p.metadata.orderId !== order.id) ||
+    (p.metadata?.gymId && p.metadata.gymId !== order.gymId) ||
+    (p.product_id && p.product_id !== subscription.productId)) throw new Error("Payment binding mismatch");
+  if (!meta.fulfilledAt && (!p.checkout_session_id || p.checkout_session_id !== meta.checkoutSessionId)) throw new Error("Awaiting matching checkout session");
+  const existing = await tx.billingPayment.findUnique({ where: { id: p.payment_id } });
+  if (existing && (existing.subscriptionId !== subscription.id || (existing.status === "succeeded" &&
+    (existing.currency !== p.currency || existing.amountMinor !== BigInt(p.total_amount))))) throw new Error("Payment identity changed");
+  const eventAt = new Date(event.timestamp);
+  if (existing && (existing.status === "succeeded" || (existing.eventAt >= eventAt && p.status !== "succeeded"))) return reconcile(tx, subscription.id);
+  let receiptId = existing?.receiptId ?? null;
+  if (p.status === "succeeded") {
+    const receiptData = {
+      status: "PAID" as const, amount: decimalAmount(BigInt(p.total_amount), p.currency),
+      currency: p.currency, paidAt: eventAt, providerRef: p.payment_id,
+    };
+    if (!order.providerRef) {
+      const receipt = await tx.platformOrder.update({ where: { id: order.id }, data: receiptData });
+      receiptId = receipt.id;
+    } else {
+      const receipt = await tx.platformOrder.create({ data: {
+        ...receiptData, userId: order.userId, gymId: order.gymId, email: order.email,
+        tier: order.tier, billingCycle: order.billingCycle, kind: "RENEWAL", provider: "dodo",
+        gymName: order.gymName, city: order.city,
+        meta: { sourceOrderId: order.id, dodoSubscriptionId: subscription.id },
+      } });
+      receiptId = receipt.id;
+    }
+  }
+  await tx.billingPayment.upsert({ where: { id: p.payment_id },
+    create: { id: p.payment_id, subscriptionId: subscription.id, receiptId, amountMinor: BigInt(p.total_amount), currency: p.currency, status: p.status, createdAt: new Date(p.created_at), eventAt },
+    update: { receiptId, status: p.status, eventAt, currency: p.currency, amountMinor: BigInt(p.total_amount) },
+  });
+  return reconcile(tx, subscription.id);
 }
 
-/**
- * Money landed: extend the paid-through date and turn the workspace on.
- *
- * The new expiry is Dodo's `next_billing_date` where it sent one — the gateway
- * is the authority on when it will charge again, and inventing our own date
- * would drift from it a little more every cycle. `extendAccess` is the
- * fallback, and it adds to the existing window rather than replacing it, so
- * renewing early never costs a gym days it has already bought.
- */
-async function grant(
-	tx: Tx,
-	gymId: string,
-	payload: DodoPayload,
-	planKey: "MONTHLY" | "ANNUAL",
-) {
-	const gym = await tx.gym.findUnique({
-		where: { id: gymId },
-		select: { accessExpiresAt: true, tier: true },
-	});
-	if (!gym) return;
-
-	const fromGateway = payload.next_billing_date
-		? new Date(payload.next_billing_date)
-		: null;
-	const accessExpiresAt =
-		fromGateway && !Number.isNaN(fromGateway.getTime())
-			? fromGateway
-			: extendAccess(gym.accessExpiresAt, planKey);
-
-	await tx.gym.update({
-		where: { id: gymId },
-		data: {
-			tier: tierFor(planKey),
-			accessExpiresAt,
-			status: "ACTIVE",
-			trialEndsAt: null,
-			dodoCustomerId: payload.customer?.customer_id ?? undefined,
-			dodoSubscriptionId: payload.subscription_id ?? undefined,
-			billingStatus: "ACTIVE",
-			billingUpdatedAt: new Date(),
-		},
-	});
+async function adjustmentEvent(tx: Tx, event: DodoEvent) {
+  const p = event.data;
+  if (!p.payment_id) throw new Error("Adjustment requires payment ID");
+  const before = await tx.billingPayment.findUnique({ where: { id: p.payment_id } });
+  if (!before) throw new Error("Awaiting payment before adjustment");
+  await lock(tx, before.subscriptionId);
+  const refund = event.type.startsWith("refund.");
+  const providerId = refund ? p.refund_id : p.dispute_id;
+  const status = refund ? p.status : p.dispute_status;
+  if (!providerId || !status || (p.currency && p.currency !== before.currency)) throw new Error("Invalid adjustment identity");
+  const id = `${refund ? "refund" : "dispute"}:${providerId}`;
+  const existing = await tx.billingAdjustment.findUnique({ where: { id } });
+  if (existing && existing.paymentId !== before.id) throw new Error("Adjustment payment changed");
+  const eventAt = new Date(event.timestamp);
+  if (existing && (existing.eventAt >= eventAt || (refund && existing.status === "succeeded"))) return reconcile(tx, before.subscriptionId);
+  // Refund amounts are minor units. Dispute amount is kept out of arithmetic:
+  // any unresolved dispute blocks its payment's entitlement until resolved.
+  const amountMinor = refund && typeof p.amount === "number" ? BigInt(p.amount) : null;
+  await tx.billingAdjustment.upsert({ where: { id },
+    create: { id, paymentId: before.id, kind: refund ? "refund" : "dispute", status, eventAt, amountMinor },
+    update: { status, eventAt, amountMinor },
+  });
+  return reconcile(tx, before.subscriptionId);
 }
 
-export type HandledResult = {
-	handled: boolean;
-	gymId: string | null;
-	note: string;
-};
+async function reconcile(tx: Tx, id: string): Promise<HandledResult> {
+  const sub = await tx.billingSubscription.findUniqueOrThrow({ where: { id }, include: { order: true, payments: { include: { adjustments: true } } } });
+  const order = sub.order;
+  const planKey = order.billingCycle === "ANNUAL" ? "ANNUAL" : "MONTHLY";
+  const eligible = sub.payments.filter(receiptEligible);
+  const periodPayment = sub.status === "active" && sub.periodStart && sub.periodEnd
+    ? eligible.find((p) => p.createdAt >= sub.periodStart! && p.createdAt < sub.periodEnd!) : undefined;
+  if (periodPayment && sub.periodEnd && !periodPayment.accessUntil) {
+    await tx.billingPayment.update({ where: { id: periodPayment.id }, data: { accessUntil: sub.periodEnd } });
+    periodPayment.accessUntil = sub.periodEnd;
+  }
+  let paidUntil = eligible.reduce<Date | null>((latest, p) => p.accessUntil && (!latest || p.accessUntil > latest) ? p.accessUntil : latest, null);
+  let gymId = order.gymId;
+  const meta = (order.meta ?? {}) as Record<string, unknown>;
+  const baseline = typeof meta.baselineAccessExpiresAt === "string" ? new Date(meta.baselineAccessExpiresAt) : null;
+  if (baseline && Number.isFinite(baseline.getTime()) && (!paidUntil || baseline > paidUntil)) paidUntil = baseline;
+  if (!meta.fulfilledAt && periodPayment && paidUntil) {
+    if (order.kind === "CLAIM") return result("Payment recorded; independent ownership review required", gymId);
+    const done = await fulfilOrder(tx, order.id, {
+      subscriptionId: sub.id, customerId: sub.customerId, paymentId: periodPayment.id,
+      nextBillingDate: periodPayment.accessUntil!.toISOString(),
+    });
+    if (!done.ok) throw new Error(done.note);
+    gymId = done.gymId;
+  }
+  if (!gymId) return result("Awaiting successful payment and verified billing period");
+  const gym = await tx.gym.findUniqueOrThrow({ where: { id: gymId } });
+  if (gym.dodoSubscriptionId && gym.dodoSubscriptionId !== sub.id) throw new Error("Gym subscription binding changed");
+  const statuses = { pending: "NONE", active: "ACTIVE", on_hold: "ON_HOLD", paused: "ON_HOLD", past_due: "ON_HOLD", cancelled: "CANCELLED", expired: "EXPIRED", failed: "FAILED" } as const;
+  const status = statuses[sub.status as keyof typeof statuses];
+  if (!status) throw new Error("Unknown subscription status");
+  // Existing manual grants are untouched until this order has been fulfilled.
+  // Thereafter access is derived from non-refunded, non-disputed paid periods.
+  const managed = Boolean(meta.fulfilledAt) || Boolean(periodPayment && paidUntil);
+  if (managed) await tx.gym.update({ where: { id: gymId }, data: {
+    dodoSubscriptionId: sub.id, dodoCustomerId: sub.customerId, billingStatus: status,
+    billingUpdatedAt: sub.eventAt, accessExpiresAt: paidUntil,
+    tier: gym.tier === "ELITE" ? undefined : tierFor(planKey),
+    // Billing must never reverse administrative suspension/cancellation.
+    status: gym.status === "TRIAL" && paidUntil && paidUntil > new Date() ? "ACTIVE" : undefined,
+  } });
+  for (const payment of sub.payments) {
+    if (!payment.receiptId) continue;
+    const fullyRefunded = payment.adjustments.filter((a) => a.kind === "refund" && a.status === "succeeded")
+      .reduce((sum, a) => sum + (a.amountMinor ?? BigInt(0)), BigInt(0)) >= payment.amountMinor;
+    if (fullyRefunded && payment.amountMinor > BigInt(0)) await tx.platformOrder.update({ where: { id: payment.receiptId }, data: { status: "REFUNDED" } });
+  }
+  return result("Verified billing ledger reconciled", gymId);
+}
 
-/**
- * Apply one verified event.
- *
- * Runs inside the caller's transaction, alongside the idempotency claim, so a
- * throw rolls back both and the gateway's retry can pick the event up again.
- */
-export async function applyEvent(
-	tx: Tx,
-	event: DodoEvent,
-): Promise<HandledResult> {
-	const payload = event.data ?? {};
-	const gymId = await resolveGymId(tx, payload);
-	const planKey = planKeyFor(payload);
-	if (!planKey) {
-		return {
-			handled: false,
-			gymId,
-			note: "unrecognised or mismatched Dodo product",
-		};
-	}
-
-	// A pending order comes first, and deliberately before the gym check: for a
-	// new signup there IS no gym yet. The order holds what one needs to exist,
-	// and fulfilling it is what creates it. Only money-in events may do this.
-	const pendingId = payload.metadata?.orderId;
-	if (
-		pendingId &&
-		(event.type === "subscription.active" ||
-			event.type === "payment.succeeded")
-	) {
-		const done = await fulfilOrder(tx, pendingId, {
-			subscriptionId: payload.subscription_id,
-			customerId: payload.customer?.customer_id,
-			paymentId: payload.payment_id,
-			nextBillingDate: payload.next_billing_date,
-		});
-		if (done.ok)
-			return { handled: true, gymId: done.gymId, note: done.note };
-		return { handled: false, gymId: null, note: done.note };
-	}
-
-	if (!gymId) {
-		// Acknowledged rather than retried forever: an event we cannot place is not
-		// going to become placeable on the eighth delivery. The reason is written
-		// to the event row for someone to read.
-		return { handled: false, gymId: null, note: "no matching gym" };
-	}
-
-	switch (event.type) {
-		/* ── money in ─────────────────────────────────────────────── */
-		case "subscription.active": {
-			// Reached only when there was no pending order to fulfil — a subscription
-			// created outside our checkout, or a replay whose metadata is gone.
-			await grant(tx, gymId, payload, planKey);
-			await recordOrder(tx, gymId, payload, {
-				status: "PAID",
-				kind: "CHECKOUT",
-				planKey,
-			});
-			return { handled: true, gymId, note: "access granted" };
-		}
-
-		case "subscription.renewed":
-			await grant(tx, gymId, payload, planKey);
-			await recordOrder(tx, gymId, payload, {
-				status: "PAID",
-				kind: "RENEWAL",
-				planKey,
-			});
-			return { handled: true, gymId, note: "access extended" };
-
-		case "payment.succeeded":
-			// Recurring access starts on subscription.active, not here — this fires
-			// for the same money and would double-extend the window. The row is still
-			// worth writing: it is the receipt.
-			await recordOrder(tx, gymId, payload, {
-				status: "PAID",
-				kind: "RENEWAL",
-				planKey,
-			});
-			return { handled: true, gymId, note: "payment recorded" };
-
-		/* ── states that must not touch the date ──────────────────── */
-		case "subscription.on_hold":
-			await link(tx, gymId, payload, "ON_HOLD");
-			return {
-				handled: true,
-				gymId,
-				note: "on hold; paid period untouched",
-			};
-
-		case "subscription.failed":
-			await link(tx, gymId, payload, "FAILED");
-			return { handled: true, gymId, note: "subscription never started" };
-
-		case "subscription.cancelled":
-			// Access deliberately survives to the paid-through date.
-			await link(tx, gymId, payload, "CANCELLED");
-			return {
-				handled: true,
-				gymId,
-				note: "cancelled; access runs to paid date",
-			};
-
-		case "subscription.expired": {
-			await link(tx, gymId, payload, "EXPIRED");
-			// The term is over, so the window closes — but only if it has not already
-			// been extended past today by a payment that arrived out of order.
-			const gym = await tx.gym.findUnique({
-				where: { id: gymId },
-				select: { accessExpiresAt: true },
-			});
-			const paidThrough = gym?.accessExpiresAt ?? null;
-			if (paidThrough && paidThrough > new Date()) {
-				return {
-					handled: true,
-					gymId,
-					note: "expired, but paid beyond today; date kept",
-				};
-			}
-			return {
-				handled: true,
-				gymId,
-				note: "expired; window already closed",
-			};
-		}
-
-		case "subscription.updated":
-		case "subscription.plan_changed": {
-			// A plan change moves the tier; it does not itself buy time. The renewal
-			// that follows is what pays for the next period.
-			await tx.gym.update({
-				where: { id: gymId },
-				data: {
-					tier: tierFor(planKey),
-					dodoCustomerId: payload.customer?.customer_id ?? undefined,
-					dodoSubscriptionId: payload.subscription_id ?? undefined,
-					billingUpdatedAt: new Date(),
-				},
-			});
-			return { handled: true, gymId, note: `synced to ${planKey}` };
-		}
-
-		case "payment.failed":
-			await recordOrder(tx, gymId, payload, {
-				status: "FAILED",
-				kind: "RENEWAL",
-				planKey,
-			});
-			return {
-				handled: true,
-				gymId,
-				note: "failure recorded; access unchanged",
-			};
-
-		case "payment.processing":
-			await recordOrder(tx, gymId, payload, {
-				status: "PENDING",
-				kind: "RENEWAL",
-				planKey,
-			});
-			return { handled: true, gymId, note: "pending; nothing granted" };
-
-		case "payment.cancelled":
-			await recordOrder(tx, gymId, payload, {
-				status: "CANCELLED",
-				kind: "RENEWAL",
-				planKey,
-			});
-			return { handled: true, gymId, note: "payment cancelled" };
-
-		default:
-			paymentLog("info", "event.ignored", { type: event.type, gymId });
-			return { handled: false, gymId, note: "event type not handled" };
-	}
+/** Called only after raw-body signature validation, in the event transaction. */
+export async function applyEvent(tx: Tx, event: DodoEvent): Promise<HandledResult> {
+  if (event.type.startsWith("subscription.")) return subscriptionEvent(tx, event);
+  if (["payment.succeeded", "payment.processing", "payment.failed", "payment.cancelled"].includes(event.type)) return paymentEvent(tx, event);
+  if (event.type.startsWith("refund.") || event.type.startsWith("dispute.")) return adjustmentEvent(tx, event);
+  return { handled: false, gymId: null, note: "Unsubscribed event type" };
 }

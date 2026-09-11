@@ -272,7 +272,7 @@ model PlatformOrder {
   gymId        String?      @map("gym_id")
   tier         PlatformTier
   billingCycle BillingCycle @default(MONTHLY) @map("billing_cycle")
-  amount       Decimal      @db.Decimal(12, 2)
+  amount       Decimal      @db.Decimal(20, 3)
   currency     String       @default("USD")
   status       OrderStatus  @default(PENDING)
   kind         OrderKind    @default(CHECKOUT)
@@ -296,12 +296,59 @@ model PlatformOrder {
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   gym  Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
+  billingSubscription BillingSubscription? @relation("BillingSource")
+  billingPayment BillingPayment? @relation("BillingReceipt")
 
   @@index([userId])
   @@index([gymId])
   @@index([status])
   @@index([createdAt])
   @@map("platform_orders")
+}
+
+/// Provider state is separate from a receipt and from the gym's entitlement.
+model BillingSubscription {
+  id String @id
+  orderId String @unique @map("order_id")
+  productId String @map("product_id")
+  customerId String @map("customer_id")
+  status String
+  eventAt DateTime @map("event_at")
+  periodStart DateTime? @map("period_start")
+  periodEnd DateTime? @map("period_end")
+  order PlatformOrder @relation("BillingSource", fields: [orderId], references: [id], onDelete: Restrict)
+  payments BillingPayment[]
+  @@map("billing_subscriptions")
+}
+
+/// Exact provider amounts are retained even if a display format changes later.
+model BillingPayment {
+  id String @id
+  subscriptionId String @map("subscription_id")
+  receiptId String? @unique @map("receipt_id")
+  amountMinor BigInt @map("amount_minor")
+  currency String
+  status String
+  createdAt DateTime @map("created_at")
+  eventAt DateTime @map("event_at")
+  accessUntil DateTime? @map("access_until")
+  subscription BillingSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  receipt PlatformOrder? @relation("BillingReceipt", fields: [receiptId], references: [id], onDelete: Restrict)
+  adjustments BillingAdjustment[]
+  @@index([subscriptionId, createdAt])
+  @@map("billing_payments")
+}
+
+model BillingAdjustment {
+  id String @id
+  paymentId String @map("payment_id")
+  kind String
+  status String
+  amountMinor BigInt? @map("amount_minor")
+  eventAt DateTime @map("event_at")
+  payment BillingPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  @@index([paymentId])
+  @@map("billing_adjustments")
 }
 
 // ─────────────────────────────────────────────────────────────

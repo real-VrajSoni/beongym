@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormError, FormField } from "@/components/ui/form-field";
 import { useAction } from "@/components/ui/use-action";
-import { CLAIM_PRICE_USD } from "@/lib/platform-plans";
 
 export function ClaimForm({ code, gymName }: { code: string; gymName: string }) {
   const { pending, error, fieldErrors, run } = useAction();
@@ -36,11 +35,11 @@ export function ClaimForm({ code, gymName }: { code: string; gymName: string }) 
       </FormField>
 
       <Button type="submit" size="lg" className="w-full" loading={pending}>
-        Claim {gymName} — ${CLAIM_PRICE_USD}
+        Request review for {gymName}
       </Button>
       <p className="text-center text-[12px] text-muted-foreground">
-        ${CLAIM_PRICE_USD} a month, the same price in every country. This opens your gym store
-        on Pro. No gateway is connected in this release, so nothing is charged today.
+        Ownership requires independent verification. Contact support to arrange review;
+        this form cannot transfer a business or charge you for an unverified claim.
       </p>
     </form>
   );

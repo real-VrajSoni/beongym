@@ -79,10 +79,8 @@ export type ListingResult = ActionResult & { code?: string };
  * upgrade step afterwards. Every order is written here so the platform console
  * sees the listing and the money that made it in one place.
  *
- * NO PAYMENT GATEWAY IS CONNECTED YET — like every other purchase here, the
- * order is written `provider: "manual"` and marked paid, and the form says so.
- * When the gateway goes in, write the order PENDING, hand off, and create the
- * gym from the webhook.
+ * A pending order carries the public profile fields until verified payment
+ * and subscription events authorize provisioning.
  */
 export async function listGymAction(
 	formData: FormData,
@@ -156,23 +154,7 @@ export async function listGymAction(
 		});
 
 		if (!result.ok) return { ok: false as const, error: result.error };
-		if (result.mode === "gateway") {
-			return {
-				ok: true as const,
-				message: "Redirecting to payment…",
-				checkoutUrl: result.checkoutUrl,
-			};
-		}
-
-		const created = await db.platformOrder.findUnique({
-			where: { id: result.orderId },
-			select: { gym: { select: { code: true, name: true } } },
-		});
-		return {
-			ok: true as const,
-			message: `${created?.gym?.name ?? d.name} is on the map.`,
-			code: created?.gym?.code,
-		};
+		return { ok: true as const, message: "Redirecting to payment…", checkoutUrl: result.checkoutUrl };
 	});
 }
 
