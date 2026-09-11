@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 
 /**
@@ -30,9 +31,9 @@ let validated = false;
 
 /**
  * Validate configuration without ever including secret values in an error.
- * The application deliberately allows missing Dodo credentials outside the
- * live deployment so contributors and test suites can run without a payment
- * account. The live deployment is different: simulated payments are forbidden.
+ * Development/test environments may omit Dodo credentials. The live deployment
+ * is different: simulated payments are forbidden and all payment configuration
+ * must be present before server infrastructure can initialize.
  */
 export function validateEnvironment(): void {
   if (validated) return;
@@ -81,11 +82,7 @@ export function validateEnvironment(): void {
   validated = true;
 }
 
-/**
- * Server-side callers should invoke this before using infrastructure that
- * depends on environment configuration. No NEXT_PUBLIC_* values are defined
- * here: secrets must never be part of the browser environment.
- */
+/** Server-only access to validated configuration. */
 export function serverEnv(): {
   databaseUrl: string;
   authSecret: string;
