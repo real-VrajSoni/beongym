@@ -4,30 +4,17 @@ import { db } from "@/lib/db";
 import { createSession, type Role } from "@/lib/auth";
 import { orderValue, planByKey, tierFor } from "@/lib/platform-plans";
 import type { OrderKind } from "@/lib/generated/prisma/enums";
-import {
-	adaptiveCurrency,
-	dodo,
-	gatewayConfigured,
-	productIdFor,
-} from "./dodo";
+import { adaptiveCurrency, dodo, gatewayConfigured, productIdFor } from "./dodo";
 import { countryCodeFor, isKnownCurrency } from "@/lib/geo/currency";
 import { paymentLog } from "./log";
 import { fulfilOrder } from "./fulfil";
 import { serverEnv } from "@/lib/env";
 
-function localisation(
-	currency: string | null | undefined,
-	country: string | null | undefined,
-) {
-	const wanted =
-		currency && currency !== "USD" && isKnownCurrency(currency)
-			? currency
-			: null;
+function localisation(currency: string | null | undefined, country: string | null | undefined) {
+	const wanted = currency && currency !== "USD" && isKnownCurrency(currency) ? currency : null;
 	const code = countryCodeFor(country) ?? (wanted === "INR" ? "IN" : null);
-
 	const out: Record<string, unknown> = {};
 	if (code) out.billing_address = { country: code };
-
 	const useLocalCurrency = Boolean(wanted && adaptiveCurrency());
 	if (useLocalCurrency && wanted) out.billing_currency = wanted;
 	return out;
@@ -76,19 +63,9 @@ export async function startPurchase(input: {
 	});
 
 	if (!realGateway) {
-		const done = await db.$transaction((tx) =>
-			fulfilOrder(tx, order.id, { paymentId: `simulated:${order.id}` }),
-		);
-		paymentLog("info", "purchase.simulated", {
-			orderId: order.id,
-			gymId: done.gymId,
-			kind: input.kind,
-		});
-		if (!done.ok)
-			return {
-				ok: false,
-				error: "That purchase could not be completed.",
-			};
+		const done = await db.$transaction((tx) => fulfilOrder(tx, order.id, { paymentId: `simulated:${order.id}` }));
+		paymentLog("info", "purchase.simulated", { orderId: order.id, gymId: done.gymId, kind: input.kind });
+		if (!done.ok) return { ok: false, error: "That purchase could not be completed." };
 		return {
 			ok: true,
 			mode: "simulated",
@@ -99,49 +76,25 @@ export async function startPurchase(input: {
 
 	const productId = productIdFor(input.planKey);
 	if (!productId) {
-		await db.platformOrder.update({
-			where: { id: order.id },
-			data: { status: "FAILED" },
-		});
-		return {
-			ok: false,
-			error: `No payment product is configured for the ${plan.name} plan.`,
-		};
+		await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
+		return { ok: false, error: `No payment product is configured for the ${plan.name} plan.` };
 	}
 	if (!input.email) {
-		await db.platformOrder.update({
-			where: { id: order.id },
-			data: { status: "FAILED" },
-		});
-		return {
-			ok: false,
-			error: "An email address is needed to take payment.",
-		};
+		await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
+		return { ok: false, error: "An email address is needed to take payment." };
 	}
 
 	const appUrl = env.appUrl.replace(/\/$/, "");
 
 	try {
-		const checkoutLocalisation = localisation(
-			input.billingCurrency,
-			input.country,
-		);
+		const checkoutLocalisation = localisation(input.billingCurrency, input.country);
 		const upiEligible =
 			checkoutLocalisation.billing_currency === "INR" &&
-			(
-				checkoutLocalisation.billing_address as
-					| { country?: string }
-					| undefined
-			)?.country === "IN";
+			(checkoutLocalisation.billing_address as { country?: string } | undefined)?.country === "IN";
 		paymentLog("info", "purchase.checkout_options", {
 			orderId: order.id,
 			planKey: input.planKey,
-			country:
-				(
-					checkoutLocalisation.billing_address as
-						| { country?: string }
-						| undefined
-				)?.country ?? null,
+			country: (checkoutLocalisation.billing_address as { country?: string } | undefined)?.country ?? null,
 			billingCurrency: checkoutLocalisation.billing_currency ?? "USD",
 			upiEligible,
 			adaptiveCurrency: adaptiveCurrency(),
@@ -150,56 +103,23 @@ export async function startPurchase(input: {
 			product_cart: [{ product_id: productId, quantity: 1 }],
 			customer: { email: input.email, name: input.name ?? "" },
 			...checkoutLocalisation,
-			metadata: {
-				orderId: order.id,
-				planKey: input.planKey,
-				...(input.gymId ? { gymId: input.gymId } : {}),
-			},
+			metadata: { orderId: order.id, planKey: input.planKey, ...(input.gymId ? { gymId: input.gymId } : {}) },
 			return_url: `${appUrl}${input.returnPath}?order=${order.id}`,
 		});
 		if (!session.checkout_url) {
-			await db.platformOrder.update({
-				where: { id: order.id },
-				data: { status: "FAILED" },
-			});
-			return {
-				ok: false,
-				error: "The payment page could not be opened. Please try again.",
-			};
+			await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
+			return { ok: false, error: "The payment page could not be opened. Please try again." };
 		}
 		await db.platformOrder.update({
 			where: { id: order.id },
-			data: {
-				meta: {
-					...(input.meta ?? {}),
-					checkoutSessionId: session.session_id,
-				} as Prisma.InputJsonValue,
-			},
+			data: { meta: { ...(input.meta ?? {}), checkoutSessionId: session.session_id } as Prisma.InputJsonValue },
 		});
-		paymentLog("info", "purchase.created", {
-			orderId: order.id,
-			kind: input.kind,
-			sessionId: session.session_id,
-		});
-		return {
-			ok: true,
-			mode: "gateway",
-			checkoutUrl: session.checkout_url,
-			orderId: order.id,
-		};
-	} catch (err) {
-		await db.platformOrder.update({
-			where: { id: order.id },
-			data: { status: "FAILED" },
-		});
-		paymentLog("error", "purchase.failed", {
-			orderId: order.id,
-			detail: err instanceof Error ? err.message : "unknown",
-		});
-		return {
-			ok: false,
-			error: "We couldn't reach the payment provider. Please try again.",
-		};
+		paymentLog("info", "purchase.created", { orderId: order.id, kind: input.kind, sessionId: session.session_id });
+		return { ok: true, mode: "gateway", checkoutUrl: session.checkout_url, orderId: order.id };
+	} catch {
+		await db.platformOrder.update({ where: { id: order.id }, data: { status: "FAILED" } });
+		paymentLog("error", "purchase.failed", { orderId: order.id, kind: input.kind });
+		return { ok: false, error: "We couldn't reach the payment provider. Please try again." };
 	}
 }
 
