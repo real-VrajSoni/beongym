@@ -1,0 +1,76 @@
+name: BeOnGym quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: beongym
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beongym?schema=public
+      AUTH_SECRET: ci-only-secret-that-is-at-least-32-characters-long
+      APP_URL: http://localhost:3400
+      CHECK_BASE_URL: http://localhost:3400
+      NODE_ENV: development
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed integration fixtures
+        run: npm run db:seed
+
+      - name: Run tenant-isolation unit checks
+        run: npm run check:tenant
+
+      - name: Start application
+        run: npm run dev > /tmp/beongym-next.log 2>&1 &
+
+      - name: Wait for application
+        run: |
+          for i in {1..60}; do
+            if curl --fail --silent http://localhost:3400/api/session > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/beongym-next.log
+          exit 1
+
+      - name: Run tenant isolation integration test
+        run: npm run check:isolation
