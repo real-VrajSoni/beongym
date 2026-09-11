@@ -17,6 +17,7 @@
  * the shape of the bug this milestone found in the workout and diet plans.
  */
 import "dotenv/config";
+import { assertDisposableDatabase } from "./disposable-database";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -48,6 +49,7 @@ async function bothWays(
 }
 
 async function main() {
+  assertDisposableDatabase();
   const db = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
   });

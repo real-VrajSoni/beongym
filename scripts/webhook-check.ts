@@ -11,6 +11,7 @@
  * as it found it.
  */
 import "dotenv/config";
+import { assertDisposableDatabase } from "./disposable-database";
 import { randomUUID } from "node:crypto";
 import { Webhook } from "standardwebhooks";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -99,6 +100,7 @@ const payEvent = (type: string, pay: string, extra: Record<string, unknown> = {}
 });
 
 async function main() {
+  assertDisposableDatabase();
   const db = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
   });

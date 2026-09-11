@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { assertDisposableDatabase } from "../scripts/disposable-database";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
@@ -18,6 +19,7 @@ import type {
   SubscriptionStatus,
 } from "../lib/generated/prisma/enums";
 
+assertDisposableDatabase();
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });

@@ -1,6 +1,7 @@
 import "server-only";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
+import { serverEnv } from "@/lib/env";
 
 /**
  * The gym's check-in poster, as an SVG.
@@ -20,7 +21,7 @@ export async function renderCheckInQr(gymId: string): Promise<{
     select: { code: true, checkInCode: true },
   });
 
-  const base = process.env.APP_URL ?? "http://localhost:3400";
+  const base = serverEnv().appUrl;
   const url = `${base}/checkin/${gym.code}?k=${gym.checkInCode}`;
 
   const svg = await QRCode.toString(url, {

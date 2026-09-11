@@ -1,7 +1,6 @@
 /**
- * Fail the live deployment before it can serve requests with an incomplete
- * security or payment configuration. Preview deployments keep the existing
- * development/test payment behavior because Vercel exposes VERCEL_ENV.
+ * Fail deployed servers, including previews, before serving requests with
+ * incomplete security/payment configuration. Previews require Dodo test mode.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;

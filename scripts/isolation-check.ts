@@ -10,6 +10,7 @@
  *   • suspending a gym locks its users out immediately
  */
 import "dotenv/config";
+import { assertDisposableDatabase } from "./disposable-database";
 import { SignJWT } from "jose";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
@@ -19,6 +20,7 @@ const BASE = process.env.CHECK_BASE_URL ?? "http://localhost:3400";
 type Check = { name: string; pass: boolean; detail: string };
 
 async function main() {
+  assertDisposableDatabase();
 	const db = new PrismaClient({
 		adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 	});
