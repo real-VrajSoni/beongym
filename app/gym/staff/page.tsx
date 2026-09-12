@@ -1,5 +1,5 @@
 import { ShieldCheck, UserCheck, Users } from "lucide-react";
-import { requireOwner } from "@/lib/auth";
+import { requirePaidOwner } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -9,7 +9,7 @@ import { relativeTime, withinLastDays } from "@/lib/format";
 export const metadata = { title: "Team" };
 
 export default async function StaffPage() {
-  const session = await requireOwner();
+  const session = await requirePaidOwner();
 
   const [gym, staff] = await Promise.all([
     db.gym.findUniqueOrThrow({ where: { id: session.gymId }, select: { code: true } }),

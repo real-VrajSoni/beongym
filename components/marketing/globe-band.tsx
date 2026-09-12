@@ -96,7 +96,7 @@ export function GlobeBand({
 
           <p className="mt-4 flex items-center gap-1.5 text-[12px] text-[var(--mk-fg-subtle)]">
             <Eye className="size-3.5" />
-            <LiveNumber value={stats.views} dot={false} /> profile views so far
+            <LiveNumber value={stats.businessTypes} dot={false} /> business types to explore
           </p>
         </div>
 

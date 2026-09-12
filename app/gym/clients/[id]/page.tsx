@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getClientDetail } from "@/lib/data/client-detail";
 import { num } from "@/lib/data/serialize";
@@ -13,7 +13,7 @@ const VALID_TABS = ["overview", "attendance", "classes", "notes", "subscription"
  * 404 rather than a 200 with a not-found body.
  */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const { id } = await params;
   const client = await db.clientProfile.findFirst({
     where: { id, gymId: session.gymId },
@@ -30,7 +30,7 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const { id } = await params;
   const { tab } = await searchParams;
 

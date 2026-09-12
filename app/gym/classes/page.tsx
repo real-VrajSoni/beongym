@@ -1,4 +1,4 @@
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PLANNING_DAYS, getCalendar, getTimetable } from "@/lib/data/classes";
 import { PageHeader } from "@/components/ui/page-header";
@@ -7,7 +7,7 @@ import { ClassesView } from "@/components/classes/classes-view";
 export const metadata = { title: "Classes" };
 
 export default async function ClassesPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
 
   const [calendar, classes, coaches] = await Promise.all([
     getCalendar(session.gymId),

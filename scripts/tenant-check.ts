@@ -267,6 +267,11 @@ async function main() {
       const body = src.slice(from, to);
       const name = starts[i]![1]!;
 
+      if (file === "links.ts" && name === "recordLinkClickAction") {
+        add("public link counter is restricted to published gyms", /gym:\s*publicGymWhere\(\)/.test(body) && /id:\s*linkId/.test(body) && /consumeRateLimit/.test(body), "public predicate, exact link and rate limit");
+        continue;
+      }
+
       for (const m of body.matchAll(WRITE_CALL)) {
         const [, table, op, , whereClause] = m;
         const key = (whereClause ?? "").trim();
@@ -375,6 +380,7 @@ async function main() {
         "listGymAction",
         "attachOwnerAction",
         "recordLinkClickAction",
+        "recordProfileViewAction",
         "getMapGymsAction",
         "getLiveStatsAction",
         "geocodeCityAction",

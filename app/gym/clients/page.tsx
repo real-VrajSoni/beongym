@@ -1,4 +1,4 @@
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getRoster } from "@/lib/data/gym";
 import { num } from "@/lib/data/serialize";
@@ -13,7 +13,7 @@ export default async function ClientsPage({
 }: {
   searchParams: Promise<{ new?: string; name?: string; email?: string; phone?: string }>;
 }) {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const params = await searchParams;
   const [roster, plans] = await Promise.all([
     getRoster(session.gymId),

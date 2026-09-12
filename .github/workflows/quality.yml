@@ -87,6 +87,9 @@ jobs:
       - name: Run tenant isolation integration test
         run: npm run check:isolation
 
+      - name: Run live tenant binding and hostile action regressions
+        run: node --conditions=react-server --import tsx scripts/tenant-boundary-check.ts
+
       - name: Run shared rate-limit and session security regressions
         run: node --conditions=react-server --import tsx scripts/security-check.ts
 

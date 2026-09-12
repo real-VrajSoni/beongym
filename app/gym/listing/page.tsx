@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, ExternalLink, Eye, Globe2, MousePointerClick, Store } from "lucide-react";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accessState, daysLeft } from "@/lib/platform-plans";
 import { formatDate } from "@/lib/format";
@@ -20,7 +20,7 @@ export const metadata = { title: "Your listing" };
  * through. It is also the fastest route to seeing what a stranger sees.
  */
 export default async function ListingPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const gym = await db.gym.findUniqueOrThrow({
     where: { id: session.gymId },
     select: {

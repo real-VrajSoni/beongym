@@ -1,4 +1,4 @@
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getRoster, getGymCurrency } from "@/lib/data/gym";
 import { num } from "@/lib/data/serialize";
@@ -16,7 +16,7 @@ import { differenceInCalendarDays } from "date-fns";
 export const metadata = { title: "Memberships" };
 
 export default async function SubscriptionsPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
 
   const [subscriptions, plans, roster, currency] = await Promise.all([
     db.subscription.findMany({

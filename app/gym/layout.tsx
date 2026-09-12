@@ -7,6 +7,7 @@ import { SessionGuard } from "@/components/layout/session-guard";
 export default async function GymLayout({ children }: { children: React.ReactNode }) {
   const session = await requireStaff();
 
+  const paid = hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt);
   const [gym, followUpsDue, queuedMessages, insideNow] = await Promise.all([
     db.gym.findUniqueOrThrow({
       where: { id: session.gymId },
@@ -21,17 +22,17 @@ export default async function GymLayout({ children }: { children: React.ReactNod
       },
     }),
     // Enquiries owed a call today: the only nav badge worth interrupting for.
-    db.lead.count({
+    paid ? db.lead.count({
       where: {
         gymId: session.gymId,
         status: { notIn: ["JOINED", "LOST"] },
         nextFollowUpAt: { lte: new Date() },
       },
-    }),
-    db.messageLog.count({ where: { gymId: session.gymId, status: "QUEUED" } }),
-    db.attendance.count({
+    }) : 0,
+    paid ? db.messageLog.count({ where: { gymId: session.gymId, status: "QUEUED" } }) : 0,
+    paid ? db.attendance.count({
       where: { gymId: session.gymId, checkOutAt: null },
-    }),
+    }) : 0,
   ]);
 
   return (

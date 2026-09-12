@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { validNewPassword } from "./security";
 import { hasAccess } from "./platform-plans";
+import { resolveLiveSession } from "./session-live";
 import {
 	SESSION_COOKIE,
 	SESSION_MAX_AGE,
@@ -155,7 +156,8 @@ export async function authenticateStaff(
 		where: { id: user.id },
 		data: { lastLoginAt: new Date() },
 	});
-	return { ok: true, user: toSession(user) };
+	const session = await resolveLiveSession(toSession(user));
+	return session ? { ok: true, user: session } : { ok: false, reason: "INVALID" };
 }
 
 /**
@@ -188,10 +190,10 @@ export async function authenticateMember(
 	const profile = await db.clientProfile.findFirst({
 		where: { gymId: gym.id, memberCode: memberCode.toUpperCase().trim() },
 		select: {
-			user: { select: { id: true, passwordHash: true, isActive: true } },
+			user: { select: { id: true, passwordHash: true, isActive: true, role: true, gymId: true } },
 		},
 	});
-	if (!profile) {
+	if (!profile || profile.user.role !== "MEMBER" || profile.user.gymId !== gym.id) {
 		await bcrypt.compare(password, DUMMY_HASH);
 		return { ok: false, reason: "INVALID" };
 	}
@@ -216,56 +218,8 @@ export async function authenticateMember(
 		where: { id: user.id },
 		data: { lastLoginAt: new Date() },
 	});
-	return { ok: true, user: toSession(user) };
-}
-
-/** True when the profile and gym the token points at are still live. */
-async function sessionIsLive(session: SessionUser): Promise<boolean> {
-	// A deactivated account loses access on its very next request.
-	const account = await db.user.findFirst({
-		where: { id: session.userId, isActive: true },
-		select: { id: true, role: true, sessionVersion: true },
-	});
-	if (!account || account.role !== session.role || account.sessionVersion !== (session.sessionVersion ?? 0)) return false;
-
-	if (session.role === "SUPER_ADMIN") return true;
-	// A prospect has no gym or profile yet — the account alone is enough.
-	if (session.role === "PROSPECT") return true;
-
-	if (!session.profileId || !session.gymId) return false;
-
-	const gym = await db.gym.findFirst({
-		where: {
-			id: session.gymId,
-			status: { notIn: ["SUSPENDED", "CANCELLED"] },
-		},
-		select: { id: true, tier: true, accessExpiresAt: true },
-	});
-	if (!gym) return false;
-	// The tier and the access window are both read from the token by the proxy.
-	// If either changes — an upgrade, a renewal, an admin edit — the token is
-	// stale, so the session is rejected rather than left holding access it no
-	// longer has. The owner is re-issued a session on their next sign-in.
-	if (session.gymTier !== null && session.gymTier !== gym.tier) return false;
-	const expiry = gym.accessExpiresAt?.toISOString() ?? null;
-	if (session.gymAccessExpiresAt !== expiry) return false;
-
-	// A member's session is only as live as their gym's membership of ours: the
-	// member app is part of what the gym pays for, and the proxy sends a lapsed
-	// gym's members to a screen that explains that rather than to a blank app.
-	if (session.role === "MEMBER") {
-		const profile = await db.clientProfile.findFirst({
-			where: { id: session.profileId, gymId: session.gymId },
-			select: { id: true },
-		});
-		return profile !== null;
-	}
-
-	const found = await db.trainerProfile.findUnique({
-		where: { id: session.profileId },
-		select: { id: true },
-	});
-	return found !== null;
+	const session = await resolveLiveSession(toSession(user));
+	return session ? { ok: true, user: session } : { ok: false, reason: "INVALID" };
 }
 
 /**
@@ -275,7 +229,7 @@ async function sessionIsLive(session: SessionUser): Promise<boolean> {
 export async function getValidSession(): Promise<SessionUser | null> {
 	const session = await getSession();
 	if (!session) return null;
-	return (await sessionIsLive(session)) ? session : null;
+	return resolveLiveSession(session);
 }
 
 export type MemberSession = SessionUser & {
@@ -286,10 +240,9 @@ export type MemberSession = SessionUser & {
 
 /** Gate for /me — a member of one gym, looking at their own record. */
 export async function requireMember(): Promise<MemberSession> {
-	const session = await getSession();
+	const session = await getValidSession();
 	if (!session) redirect("/login?next=/me");
 	if (session.role !== "MEMBER") redirect(homeOf(session.role));
-	if (!(await sessionIsLive(session))) redirect("/login?error=stale-session");
 	if (!session.profileId || !session.gymId)
 		redirect("/login?error=missing-profile");
 	return session as MemberSession;
@@ -301,32 +254,29 @@ export type ProspectSession = SessionUser & { email: string };
 
 /** Gate for /start — someone with an account but no gym yet. */
 export async function requireProspect(): Promise<ProspectSession> {
-	const session = await getSession();
+	const session = await getValidSession();
 	// `/start` is the post-signup setup funnel. Keep unauthenticated visitors in
 	// that funnel instead of presenting payment setup before an account exists.
 	if (!session) redirect("/signup");
 	if (session.role !== "PROSPECT") redirect(homeOf(session.role));
-	if (!(await sessionIsLive(session))) redirect("/login?error=stale-session");
 	return session as ProspectSession;
 }
 
 /** Gate for /admin — the platform operator only. */
 export async function requireAdmin(): Promise<AdminSession> {
-	const session = await getSession();
+	const session = await getValidSession();
 	if (!session) redirect("/login");
 	if (session.role !== "SUPER_ADMIN") redirect(homeOf(session.role));
-	if (!(await sessionIsLive(session))) redirect("/login?error=stale-session");
 	return session as AdminSession;
 }
 
 /** Gate for /gym — gym owners and staff, scoped to their own tenant. */
 export async function requireStaff(): Promise<StaffSession> {
-	const session = await getSession();
+	const session = await getValidSession();
 	if (!session) redirect("/login");
 	if (!isStaff(session.role)) redirect(homeOf(session.role));
 	if (!session.profileId || !session.gymId)
 		redirect("/login?error=missing-profile");
-	if (!(await sessionIsLive(session))) redirect("/login?error=stale-session");
 	return session as StaffSession;
 }
 
@@ -341,8 +291,7 @@ export async function requireOwner(): Promise<StaffSession> {
 /**
  * Gate for the operational workspace: signed in, staff, and paid up.
  *
- * `proxy.ts` already turns a lapsed gym away from these screens, but a proxy
- * routes *pages* and a server action is a POST to whatever route the browser
+ * A server action is a POST to whatever route the browser
  * happens to be on. `/gym/settings`, `/gym/renew` and `/gym/billing` stay open
  * on purpose — locking somebody out of the page where they would pay you is a
  * good way to not get paid — and an action id is the same wherever it is called

@@ -1,5 +1,5 @@
 import { Dumbbell, Salad, Timer } from "lucide-react";
-import { requireMember } from "@/lib/auth";
+import { requirePaidMember } from "@/lib/auth";
 import { getMemberProgramme } from "@/lib/data/member";
 import { Section } from "@/components/ui/section";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,7 +8,7 @@ import { DAY_LABELS } from "@/lib/labels";
 export const metadata = { title: "Training" };
 
 export default async function MemberTrainingPage() {
-  const session = await requireMember();
+  const session = await requirePaidMember();
   const programme = await getMemberProgramme(session.profileId);
 
   if (!programme) {

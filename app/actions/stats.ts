@@ -3,15 +3,25 @@
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 import { db } from "@/lib/db";
-import { listGyms } from "@/lib/data/directory";
+import { listGyms, publicGymWhere } from "@/lib/data/directory";
 import type { DirectoryGym } from "@/lib/data/directory";
 
 export type LiveStats = {
   gyms: number;
   countries: number;
   cities: number;
-  views: number;
+  businessTypes: number;
 };
+
+/** Public profile traffic stays in private owner analytics. No metric returned. */
+export async function recordProfileViewAction(code: string): Promise<void> {
+  if (typeof code !== "string" || code.length > 40) return;
+  try {
+    await enforceRateLimit("public-profile-view", "all", 600, 60000);
+    await enforceRateLimit("public-profile-code", code.toUpperCase(), 60, 60000);
+    await db.gym.updateMany({ where: { ...publicGymWhere(), code: code.toUpperCase() }, data: { viewCount: { increment: 1 } } });
+  } catch { /* Analytics must not block opening a public profile. */ }
+}
 
 /**
  * Every listed gym, for the map.
@@ -36,13 +46,9 @@ export async function getMapGymsAction(): Promise<DirectoryGym[]> {
 export async function getLiveStatsAction(): Promise<LiveStats> {
   await enforceRateLimit("public-stats", "all", 1000, 60000);
   // The same population the map draws: listed, trading, and paid up.
-  const where = {
-    listed: true,
-    status: { in: ["ACTIVE" as const, "TRIAL" as const] },
-    OR: [{ tier: "ELITE" as const }, { accessExpiresAt: { gt: new Date() } }],
-  };
+  const where = publicGymWhere();
 
-  const [gyms, countries, cities, views] = await Promise.all([
+  const [gyms, countries, cities, businessTypes] = await Promise.all([
     db.gym.count({ where }),
     db.gym.findMany({
       where: { ...where, country: { not: null } },
@@ -54,13 +60,13 @@ export async function getLiveStatsAction(): Promise<LiveStats> {
       select: { city: true },
       distinct: ["city"],
     }),
-    db.gym.aggregate({ where, _sum: { viewCount: true } }),
+    db.gym.findMany({ where, select: { businessType: true }, distinct: ["businessType"] }),
   ]);
 
   return {
     gyms,
     countries: countries.length,
     cities: cities.length,
-    views: views._sum.viewCount ?? 0,
+    businessTypes: businessTypes.length,
   };
 }

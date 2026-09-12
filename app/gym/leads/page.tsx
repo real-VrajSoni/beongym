@@ -1,4 +1,4 @@
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { LeadsView } from "@/components/leads/leads-view";
@@ -6,7 +6,7 @@ import { LeadsView } from "@/components/leads/leads-view";
 export const metadata = { title: "Enquiries" };
 
 export default async function LeadsPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
 
   const leads = await db.lead.findMany({
     where: { gymId: session.gymId },

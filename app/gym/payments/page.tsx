@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, Clock, IndianRupee } from "lucide-react";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getRevenueSeries, getGymCurrency } from "@/lib/data/gym";
 import { num } from "@/lib/data/serialize";
@@ -17,7 +17,7 @@ import {
 export const metadata = { title: "Payments" };
 
 export default async function PaymentsPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
 
   const [payments, subscriptions, revenue, currency] = await Promise.all([
     db.payment.findMany({

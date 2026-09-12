@@ -101,7 +101,7 @@ export function GymStore({
           <div className="mt-4 flex flex-wrap gap-2">
             <Stat value={stats.gyms} label={stats.gyms === 1 ? "gym live" : "gyms live"} live />
             <Stat value={stats.countries} label={stats.countries === 1 ? "country" : "countries"} />
-            <Stat value={stats.views} label="views" icon={Eye} />
+            <Stat value={stats.businessTypes} label="business types" icon={Eye} />
           </div>
           <Link
             href="/list"
@@ -156,7 +156,7 @@ export function GymStore({
                     label={stats.countries === 1 ? "country" : "countries"}
                   />
                   <Stat value={stats.cities} label={stats.cities === 1 ? "city" : "cities"} />
-                  <Stat value={stats.views} label="profile views" icon={Eye} />
+                  <Stat value={stats.businessTypes} label="business types" icon={Eye} />
                 </div>
               </div>
             </div>

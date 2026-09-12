@@ -13,7 +13,7 @@ function liveAccess() {
 }
 
 /** Listed, trading and paid up — the only gyms the public directory shows. */
-function onTheMap(city?: string) {
+export function publicGymWhere(city?: string) {
   return {
     listed: true,
     status: { in: ["ACTIVE" as const, "TRIAL" as const] },
@@ -32,7 +32,7 @@ function onTheMap(city?: string) {
  */
 export async function listGyms(city?: string) {
   const gyms = await db.gym.findMany({
-    where: onTheMap(city),
+    where: publicGymWhere(city),
     orderBy: [{ tier: "desc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -44,20 +44,16 @@ export async function listGyms(city?: string) {
       logoText: true,
       imageUrl: true,
       amenities: true,
-      tier: true,
       businessType: true,
       country: true,
       currency: true,
       latitude: true,
       longitude: true,
-      viewCount: true,
       claimed: true,
-      storeSetupAt: true,
       links: {
         orderBy: { sortOrder: "asc" },
         select: { id: true, kind: true, label: true, url: true },
       },
-      _count: { select: { members: true } },
     },
   });
 
@@ -76,11 +72,7 @@ export async function listGyms(city?: string) {
     /** Null for gyms that never set a location — listed, but not on the map. */
     lat: g.latitude,
     lng: g.longitude,
-    /** Profile views. Social proof for searchers, not analytics. */
-    views: g.viewCount,
     claimed: g.claimed,
-    /** Shown as a signal of scale, not an exact figure. */
-    memberCount: g._count.members,
     /** Every gym here has paid; Elite ones paid once, for good. */
     managed: true,
     links: g.links,
@@ -114,21 +106,17 @@ export async function getPublicGym(code: string) {
       imageUrl: true,
       amenities: true,
       openingHours: true,
-      tier: true,
       businessType: true,
       country: true,
       currency: true,
       latitude: true,
       longitude: true,
-      viewCount: true,
       claimed: true,
-      storeSetupAt: true,
       links: {
         orderBy: { sortOrder: "asc" },
-        select: { id: true, kind: true, label: true, url: true, clickCount: true },
+        select: { id: true, kind: true, label: true, url: true },
       },
       createdAt: true,
-      _count: { select: { members: true, staff: true } },
       // Only what the gym sells, and only while it is on sale. `showPrice`
       // decides whether the figure travels with it — see the store page.
       plans: {
@@ -147,17 +135,8 @@ export async function getPublicGym(code: string) {
       },
     },
   });
-  return gym;
-}
-
-/**
- * One view per profile open. Fire-and-forget: a failed counter must never take
- * the page down, and an exact count is not worth a transaction here.
- */
-export async function recordGymView(gymId: string) {
-  await db.gym
-    .update({ where: { id: gymId }, data: { viewCount: { increment: 1 } } })
-    .catch(() => null);
+  if (!gym) return null;
+  return { ...gym, plans: gym.plans.map((plan) => ({ ...plan, price: plan.showPrice ? Number(plan.price) : null })) };
 }
 
 /**
@@ -167,7 +146,7 @@ export async function recordGymView(gymId: string) {
 export async function listUnclaimedGyms() {
   const gyms = await db.gym.findMany({
     where: { listed: true, claimed: false, status: { in: ["ACTIVE", "TRIAL"] } },
-    orderBy: { viewCount: "desc" },
+    orderBy: { name: "asc" },
     select: {
       code: true,
       name: true,
@@ -176,17 +155,16 @@ export async function listUnclaimedGyms() {
       accentColor: true,
       logoText: true,
       imageUrl: true,
-      viewCount: true,
       amenities: true,
     },
   });
-  return gyms.map((g) => ({ ...g, views: g.viewCount }));
+  return gyms;
 }
 
 /** Cities with at least one paid-up gym, for the directory filter. */
 export async function listCities() {
   const rows = await db.gym.findMany({
-    where: { ...onTheMap(), city: { not: null } },
+    where: { ...publicGymWhere(), city: { not: null } },
     select: { city: true },
     distinct: ["city"],
     orderBy: { city: "asc" },

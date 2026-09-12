@@ -11,7 +11,7 @@ export type PublicProgramme = {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  price: number | null;
   showPrice: boolean;
   durationDays: number;
   billingInterval: string;
@@ -48,7 +48,7 @@ export function ProgrammeCard({
 
   const billing = label(BILLING_LABELS, programme.billingInterval);
   const type = label(PLAN_TYPE_LABELS, programme.planType);
-  const cta = programme.showPrice ? "Enquire about this" : "Contact for latest price";
+  const cta = programme.showPrice && programme.price !== null ? "Enquire about this" : "Contact for latest price";
 
   return (
     <>
@@ -109,7 +109,7 @@ export function ProgrammeCard({
           </span>
 
           <div className="mt-auto pt-5">
-            {programme.showPrice ? (
+            {programme.showPrice && programme.price !== null ? (
               <p className="tabular mb-3 text-[22px] leading-none font-semibold">
                 {formatCurrency(programme.price, currency)}
                 <span className="ml-1 text-[12px] font-normal text-[var(--mk-fg-subtle)]">
@@ -152,7 +152,7 @@ export function ProgrammeCard({
               <Fact
                 icon={Tag}
                 value={
-                  programme.showPrice
+                  programme.showPrice && programme.price !== null
                     ? formatCurrency(programme.price, currency)
                     : "Price on request"
                 }
@@ -175,7 +175,7 @@ export function ProgrammeCard({
 
             <p className="mt-5 flex items-start gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3.5 py-3 text-[12.5px] leading-relaxed text-muted-foreground">
               <Info className="mt-0.5 size-3.5 shrink-0" />
-              {programme.showPrice
+              {programme.showPrice && programme.price !== null
                 ? `${formatCurrency(programme.price, currency)} for ${programme.durationDays} days, billed ${billing.toLowerCase()}. Joining is arranged directly with the gym.`
                 : "This gym quotes its prices directly — they change with intake and season. Get in touch and they'll tell you what this costs today."}
             </p>

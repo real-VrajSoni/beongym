@@ -1,5 +1,6 @@
 "use server";
 
+import { publicGymWhere } from "@/lib/data/directory";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
 import { revalidatePath } from "next/cache";
@@ -127,6 +128,6 @@ export async function recordLinkClickAction(linkId: string): Promise<void> {
   try {
     if (!(await consumeRateLimit("public-link-click", "all", 300, 60000))) return;
     if (!(await consumeRateLimit("public-link", linkId, 30, 60000))) return;
-    await db.gymLink.updateMany({ where: { id: linkId, gym: { listed: true, status: { in: ["ACTIVE", "TRIAL"] } } }, data: { clickCount: { increment: 1 } } });
+    await db.gymLink.updateMany({ where: { id: linkId, gym: publicGymWhere() }, data: { clickCount: { increment: 1 } } });
   } catch { /* Best-effort analytics must not block a public link. */ }
 }

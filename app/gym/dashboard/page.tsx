@@ -10,7 +10,7 @@ import {
   Inbox,
   Sparkles,
 } from "lucide-react";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { getDashboard, getFollowUpQueue, getRevenueSeries, getGymCurrency } from "@/lib/data/gym";
 import { getAttendance } from "@/lib/data/attendance";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/format";
@@ -29,7 +29,7 @@ import { greetingFor } from "@/components/dashboard/greeting";
 export const metadata = { title: "Dashboard" };
 
 export default async function TrainerDashboardPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   // Revenue is the owner's business, not the front desk's. Staff get floor
   // numbers in its place.
   const isOwner = session.role === "GYM_OWNER";

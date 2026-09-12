@@ -6,7 +6,7 @@ import { geoContains, geoDistance, geoGraticule10, geoOrthographic, geoPath } fr
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import type { Feature, FeatureCollection } from "geojson";
-import { ArrowRight, Eye, LocateFixed, MapPin, Minus, Plus, X } from "lucide-react";
+import { ArrowRight, LocateFixed, MapPin, Minus, Plus, X } from "lucide-react";
 import type { DirectoryGym } from "@/lib/data/directory";
 import { GymLinks } from "./gym-links";
 import { layoutMarkers, type LaidOut, type LaidOutCity } from "@/lib/geo/globe-layout";
@@ -131,8 +131,8 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
   const [themeTick, setThemeTick] = useState(0);
 
   const selectedGym = placed.find((g) => g.code === selected) ?? null;
-  const mostViewed = useMemo(
-    () => [...placed].sort((a, b) => b.views - a.views).slice(0, 5),
+  const exploreGyms = useMemo(
+    () => [...placed].sort((a, b) => a.name.localeCompare(b.name)).slice(0, 5),
     [placed],
   );
 
@@ -393,7 +393,7 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
         })
         .filter((p) => p.dist < Math.PI / 2.15)
         // Nearest the centre first: that pin keeps its spot and absorbs the rest.
-        .sort((a, b) => a.dist - b.dist || b.gym.views - a.gym.views);
+        .sort((a, b) => a.dist - b.dist || a.gym.name.localeCompare(b.gym.name));
 
       const {
         markers: laid,
@@ -642,15 +642,15 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
         </GlobeControl>
       </div>
 
-      {mostViewed.length > 0 ? (
+      {exploreGyms.length > 0 ? (
         <div className="pointer-events-none absolute inset-0 hidden p-4 sm:block sm:p-6">
           <div className="mx-auto flex h-full max-w-7xl items-end justify-end">
             <div className="pointer-events-auto mr-12 w-[260px] rounded-2xl border border-[var(--mk-border-strong)] bg-[var(--mk-bg)]/80 p-3 backdrop-blur-xl">
               <p className="px-1 pb-2 text-[11px] font-semibold tracking-[0.14em] text-[var(--mk-fg-subtle)] uppercase">
-                Most viewed
+                Explore businesses
               </p>
               <ul className="space-y-0.5">
-                {mostViewed.map((gym, i) => (
+                {exploreGyms.map((gym, i) => (
                   <li key={gym.code}>
                     <button
                       type="button"
@@ -671,9 +671,6 @@ export function GymGlobe({ gyms, focus }: { gyms: DirectoryGym[]; focus?: string
                         <span className="block truncate text-[11px] text-[var(--mk-fg-subtle)]">
                           {gym.city}
                         </span>
-                      </span>
-                      <span className="shrink-0 text-[11px] tabular-nums text-[var(--mk-fg-subtle)]">
-                        {gym.views.toLocaleString()}
                       </span>
                     </button>
                   </li>
@@ -817,9 +814,6 @@ function GlobeGymCard({ gym, onClose }: { gym: Placed; onClose: () => void }) {
           <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[var(--mk-fg-muted)]">
             <MapPin className="size-3" />
             {[gym.city, gym.country].filter(Boolean).join(", ") || "On the map"}
-            <span className="text-[var(--mk-fg-subtle)]">·</span>
-            <Eye className="size-3" />
-            {gym.views.toLocaleString()}
           </p>
         </div>
         <button

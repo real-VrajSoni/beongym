@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CircleAlert, Receipt } from "lucide-react";
-import { requireMember } from "@/lib/auth";
+import { requirePaidMember } from "@/lib/auth";
 import { getMemberHome } from "@/lib/data/member";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,7 +12,7 @@ import { DEFAULT_CURRENCY } from "@/lib/geo/currency";
 export const metadata = { title: "Payments" };
 
 export default async function MemberPaymentsPage() {
-  const session = await requireMember();
+  const session = await requirePaidMember();
   const me = await getMemberHome(session.profileId);
   if (!me) notFound();
 

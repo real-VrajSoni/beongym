@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { hasAccess } from "@/lib/platform-plans";
 import { PauseCircle } from "lucide-react";
 import { requireMember } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -15,6 +17,7 @@ export const metadata = { title: "Paused" };
  */
 export default async function MemberPausedPage() {
   const session = await requireMember();
+  if (hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt)) redirect("/me");
   const gym = await db.gym.findUniqueOrThrow({
     where: { id: session.gymId },
     select: { name: true, phone: true },

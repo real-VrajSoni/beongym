@@ -10,7 +10,7 @@ import {
   Target,
   UserRound,
 } from "lucide-react";
-import { requireMember } from "@/lib/auth";
+import { requirePaidMember } from "@/lib/auth";
 import { getMemberHome } from "@/lib/data/member";
 import { GymLinks } from "@/components/directory/gym-links";
 import { Section } from "@/components/ui/section";
@@ -24,7 +24,7 @@ import { label, PLAN_TYPE_LABELS } from "@/lib/labels";
 export const metadata = { title: "Home" };
 
 export default async function MemberHomePage() {
-  const session = await requireMember();
+  const session = await requirePaidMember();
   const me = await getMemberHome(session.profileId);
   if (!me) notFound();
 

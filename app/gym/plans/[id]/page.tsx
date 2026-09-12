@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Apple, Banknote, Dumbbell, Users } from "lucide-react";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getGymCurrency } from "@/lib/data/gym";
 import { num } from "@/lib/data/serialize";
@@ -18,7 +18,7 @@ import { DietPlanButton, WorkoutPlanButton } from "@/components/plans/attachment
 
 /** Runs before streaming begins, so an unowned plan returns a real 404. */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const { id } = await params;
   const plan = await db.plan.findFirst({
     where: { id, gymId: session.gymId },
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 export default async function PlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const { id } = await params;
 
   // The gym's currency, not the copy denormalised onto the plan row — that copy

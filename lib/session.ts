@@ -28,11 +28,9 @@ export type SessionUser = {
   /**
    * When this gym's paid access runs out, as an ISO string.
    *
-   * Carried in the token so `proxy.ts` can turn an expired gym away before the
-   * response starts streaming, without a database round trip on every request.
-   * A stale token cannot buy extra time — the date is compared against the
-   * clock, not trusted as a flag — and `sessionIsLive()` re-reads it from the
-   * database so a renewal or an admin change lands on the next request.
+   * A snapshot for compatibility. Live session resolution replaces it with the
+   * database value before page/action guards decide access. Renewals therefore
+   * do not require every gym user to sign in again.
    */
   gymAccessExpiresAt: string | null;
 };

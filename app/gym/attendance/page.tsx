@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Activity, DoorOpen, QrCode, Repeat, Users } from "lucide-react";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getAttendance } from "@/lib/data/attendance";
 import { relativeTime } from "@/lib/format";
@@ -13,7 +13,7 @@ import { AttendanceView } from "@/components/attendance/attendance-view";
 export const metadata = { title: "Attendance" };
 
 export default async function AttendancePage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
 
   const [data, members] = await Promise.all([
     getAttendance(session.gymId),

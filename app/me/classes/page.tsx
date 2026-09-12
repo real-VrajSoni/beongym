@@ -1,11 +1,11 @@
-import { requireMember } from "@/lib/auth";
+import { requirePaidMember } from "@/lib/auth";
 import { getMemberTimetable, PLANNING_DAYS } from "@/lib/data/classes";
 import { MemberClasses } from "@/components/member/classes-view";
 
 export const metadata = { title: "Classes" };
 
 export default async function MemberClassesPage() {
-  const session = await requireMember();
+  const session = await requirePaidMember();
   const slots = await getMemberTimetable(session.gymId, session.profileId);
 
   return (

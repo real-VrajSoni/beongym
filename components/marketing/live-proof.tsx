@@ -14,10 +14,10 @@ export function LiveProof({ initial }: { initial: LiveStats }) {
   const stats = useLiveStats(initial);
 
   const cells: [React.ReactNode, string][] = [
-    [<LiveNumber key="g" value={stats.gyms} />, "Gyms paying"],
+    [<LiveNumber key="g" value={stats.gyms} />, "Public listings"],
     [<LiveNumber key="c" value={stats.cities} dot={false} />, "Cities"],
     [<LiveNumber key="n" value={stats.countries} dot={false} />, "Countries"],
-    [<LiveNumber key="v" value={stats.views} dot={false} />, "Profile views"],
+    [<LiveNumber key="v" value={stats.businessTypes} dot={false} />, "Business types"],
   ];
 
   return (

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, Check, Eye, MapPin } from "lucide-react";
-import { db } from "@/lib/db";
+import { ArrowLeft, Building2, Check, MapPin } from "lucide-react";
+import { getPublicGym } from "@/lib/data/directory";
 import { getValidSession } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
 import { CLAIM_PRICE_USD } from "@/lib/platform-plans";
@@ -24,21 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 export default async function ClaimGymPage({ params }: { params: Promise<{ code: string }> }) {
   const [{ code }, session] = await Promise.all([params, getValidSession()]);
 
-  const gym = await db.gym.findFirst({
-    where: { code: code.toUpperCase(), listed: true },
-    select: {
-      code: true,
-      name: true,
-      tagline: true,
-      city: true,
-      address: true,
-      accentColor: true,
-      logoText: true,
-      imageUrl: true,
-      viewCount: true,
-      claimed: true,
-    },
-  });
+  const gym = await getPublicGym(code);
   if (!gym) notFound();
 
   return (
@@ -85,9 +71,6 @@ export default async function ClaimGymPage({ params }: { params: Promise<{ code:
                     <MapPin className="size-3.5" /> {gym.city}
                   </span>
                 ) : null}
-                <span className="inline-flex items-center gap-1.5">
-                  <Eye className="size-3.5" /> {gym.viewCount.toLocaleString()} views
-                </span>
                 <span className="font-mono">{gym.code}</span>
               </p>
             </div>

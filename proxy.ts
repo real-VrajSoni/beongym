@@ -5,7 +5,6 @@ import {
 	portalFor,
 	verifySession,
 } from "@/lib/session";
-import { hasAccess } from "@/lib/platform-plans";
 
 /**
  * Next 16's `proxy` convention (formerly `middleware`).
@@ -21,31 +20,10 @@ import { hasAccess } from "@/lib/platform-plans";
  * not-authorised body with a 200 already on the wire.
  *
  * The role comes from the signed token. If an owner demotes someone mid-session
- * that token goes stale — sessionIsLive() compares it against the database on
+ * that token goes stale — resolveLiveSession() compares it against the database on
  * the next request and rejects the mismatch.
  */
 const OWNER_ONLY_PREFIXES = ["/gym/staff", "/gym/billing"];
-
-/**
- * Everything behind the paywall.
- *
- * There is no free tier, so a gym whose access has run out reaches none of
- * this. Renewing and settings stay open — locking somebody out of the page
- * where they would pay you is a good way to not get paid.
- */
-const PAID_PREFIXES = [
-	"/gym/dashboard",
-	"/gym/attendance",
-	"/gym/clients",
-	"/gym/plans",
-	"/gym/subscriptions",
-	"/gym/messages",
-	"/gym/classes",
-	"/gym/leads",
-	"/gym/payments",
-	"/gym/staff",
-	"/gym/listing",
-];
 
 export default async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
@@ -103,31 +81,7 @@ export default async function proxy(request: NextRequest) {
 		);
 	}
 
-	// The member app is part of what the gym buys. If the gym's window closes,
-	// its members get one page explaining that rather than an app full of holes.
-	if (
-		session.role === "MEMBER" &&
-		!hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt) &&
-		pathname !== "/me/paused"
-	) {
-		return privately(
-			NextResponse.redirect(new URL("/me/paused", request.url)),
-		);
-	}
-
-	// The paywall. The expiry rides in the signed token and is compared against
-	// the clock here, so a lapsed membership is turned away before the response
-	// starts streaming rather than after a page has already rendered.
-	if (
-		session.gymId &&
-		!hasAccess(session.gymTier ?? "PRO", session.gymAccessExpiresAt) &&
-		PAID_PREFIXES.some((p) => pathname.startsWith(p))
-	) {
-		return privately(
-			NextResponse.redirect(new URL("/gym/renew", request.url)),
-		);
-	}
-
+	// Live page/action guards enforce billing; a renewed cookie may carry an old expiry.
 	return privately(NextResponse.next());
 }
 

@@ -1,5 +1,5 @@
 import { MessageCircle } from "lucide-react";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import {
   KIND_BLURBS,
   KIND_LABELS,
@@ -13,7 +13,7 @@ import { MessagesView } from "@/components/messages/messages-view";
 export const metadata = { title: "Reminders" };
 
 export default async function MessagesPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const [rules, queue, history] = await Promise.all([
     getMessageRules(session.gymId),
     getQueue(session.gymId),

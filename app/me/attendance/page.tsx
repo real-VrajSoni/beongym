@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Flame } from "lucide-react";
-import { requireMember } from "@/lib/auth";
+import { requirePaidMember } from "@/lib/auth";
 import { getMemberHome } from "@/lib/data/member";
 import { AttendanceGrid } from "@/components/attendance/attendance-grid";
 import { Section } from "@/components/ui/section";
@@ -11,7 +11,7 @@ import { formatDate, formatDateShort } from "@/lib/format";
 export const metadata = { title: "Attendance" };
 
 export default async function MemberAttendancePage() {
-  const session = await requireMember();
+  const session = await requirePaidMember();
   const me = await getMemberHome(session.profileId);
   if (!me) notFound();
 

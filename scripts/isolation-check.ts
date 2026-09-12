@@ -486,7 +486,11 @@ async function main() {
 			const r = await get(path, lapsedToken);
 			add(
 				`lapsed gym -> ${path}`,
-				r.status === 307 && (r.location ?? "").includes("/gym/renew"),
+				// Page loaders use live billing state; a loading boundary may have
+				// started streaming before Next emits its redirect instruction.
+				((r.status === 307 && (r.location ?? "").includes("/gym/renew")) ||
+				 (r.status === 200 && r.body.includes("NEXT_REDIRECT;replace;/gym/renew"))) &&
+				 !r.body.includes(memberA.user.name) && !r.body.includes(memberB.user.name),
 				`${r.status} -> ${r.location}`,
 			);
 		}

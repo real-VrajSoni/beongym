@@ -1,4 +1,4 @@
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { num } from "@/lib/data/serialize";
 import { PageHeader } from "@/components/ui/page-header";
@@ -9,7 +9,7 @@ import { getGymCurrency } from "@/lib/data/gym";
 export const metadata = { title: "Membership plans" };
 
 export default async function PlansPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
 
   const currency = await getGymCurrency(session.gymId);
 

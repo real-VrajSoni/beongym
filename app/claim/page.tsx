@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Eye, MapPin, Sparkles } from "lucide-react";
+import { ArrowRight, MapPin, Sparkles } from "lucide-react";
 import { listUnclaimedGyms } from "@/lib/data/directory";
 import { BRAND } from "@/lib/brand";
 import { CLAIM_PRICE_USD } from "@/lib/platform-plans";
@@ -118,10 +118,6 @@ export default async function ClaimIndexPage() {
                       <span className="inline-flex items-center gap-1.5">
                         <MapPin className="size-3.5" />
                         {gym.city ?? "—"}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Eye className="size-3.5" />
-                        {gym.views.toLocaleString()} views
                       </span>
                     </p>
                   </div>

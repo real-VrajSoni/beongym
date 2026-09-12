@@ -11,11 +11,10 @@ import {
   Phone,
   ShieldCheck,
   Sparkles,
-  Users,
 } from "lucide-react";
-import { getPublicGym, recordGymView } from "@/lib/data/directory";
+import { getPublicGym } from "@/lib/data/directory";
+import { ProfileView } from "@/components/directory/profile-view";
 import { getValidSession } from "@/lib/auth";
-import { num } from "@/lib/data/serialize";
 import { formatDate } from "@/lib/format";
 import { BRAND } from "@/lib/brand";
 import { CLAIM_PRICE_USD } from "@/lib/platform-plans";
@@ -43,10 +42,6 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
   const gym = await getPublicGym(code);
   if (!gym) notFound();
 
-  // Social proof for the next searcher. Not awaited into the render path — a
-  // counter must never be the reason a profile fails to load.
-  void recordGymView(gym.id);
-
   // An unclaimed listing is a placeholder built from public information: it is
   // reachable by link so somebody can claim it, but there is no owner behind it
   // and so nothing to present as a store.
@@ -62,10 +57,6 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
       : (gym.links[0]?.url ?? null);
 
   const stats: { label: string; value: string }[] = [
-    { label: "Profile views", value: gym.viewCount.toLocaleString() },
-    ...(store && gym._count.members > 0
-      ? [{ label: "Members", value: gym._count.members.toLocaleString() }]
-      : []),
     ...(store && gym.plans.length > 0
       ? [{ label: "Programmes", value: String(gym.plans.length) }]
       : []),
@@ -82,6 +73,7 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
 
   return (
     <div className="min-h-dvh bg-[var(--mk-bg)] text-[var(--mk-fg)]">
+      <ProfileView code={gym.code} />
       <header className="sticky top-0 z-40 border-b border-[var(--mk-border)] bg-[var(--mk-bg)]/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -313,7 +305,7 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
                         id: p.id,
                         name: p.name,
                         description: p.description,
-                        price: num(p.price) ?? 0,
+                        price: p.price,
                         showPrice: p.showPrice,
                         durationDays: p.durationDays,
                         billingInterval: p.billingInterval,
@@ -424,19 +416,6 @@ export default async function GymProfilePage({ params }: { params: Promise<{ cod
                   <div className="flex gap-2.5">
                     <Clock className="mt-0.5 size-3.5 shrink-0 text-[var(--mk-fg-subtle)]" />
                     <dd className="text-[var(--mk-fg-muted)]">{gym.openingHours}</dd>
-                  </div>
-                ) : null}
-                {/* An unclaimed listing has no roster to speak of — the count
-                    would be a fact about our database, not about the gym. */}
-                {store ? (
-                  <div className="flex gap-2.5">
-                    <Users className="mt-0.5 size-3.5 shrink-0 text-[var(--mk-fg-subtle)]" />
-                    <dd className="text-[var(--mk-fg-muted)]">
-                      {gym._count.members > 0
-                        ? `${gym._count.members} members training here`
-                        : "New on BeOnGym"}
-                      {gym._count.staff > 0 ? ` · ${gym._count.staff} staff` : ""}
-                    </dd>
                   </div>
                 ) : null}
                 <div className="flex gap-2.5">

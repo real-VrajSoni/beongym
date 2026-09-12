@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Printer, QrCode } from "lucide-react";
-import { requireStaff } from "@/lib/auth";
+import { requirePaidStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { renderCheckInQr } from "@/lib/data/checkin-qr";
 import { PageHeader } from "@/components/ui/page-header";
@@ -18,7 +18,7 @@ export const metadata = { title: "Check-in code" };
  * screen whose whole job is to be looked at.
  */
 export default async function CheckInQrPage() {
-  const session = await requireStaff();
+  const session = await requirePaidStaff();
   const [qr, gym] = await Promise.all([
     renderCheckInQr(session.gymId),
     db.gym.findUniqueOrThrow({

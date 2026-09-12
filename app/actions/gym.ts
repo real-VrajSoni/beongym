@@ -5,7 +5,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import {
 	createSession,
-	getSession,
 	requireOwner,
 	requirePaidStaff,
 } from "@/lib/auth";
@@ -113,8 +112,7 @@ export async function updateGymProfileAction(
 		});
 
 		// The gym name lives in the session cookie for the sidebar.
-		const current = await getSession();
-		if (current) await createSession({ ...current, gymName: gym.name });
+		await createSession({ ...session, gymName: gym.name });
 
 		revalidatePath("/gym/settings");
 		revalidatePath("/gym/dashboard");

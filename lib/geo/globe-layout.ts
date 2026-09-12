@@ -95,7 +95,6 @@ export function layoutMarkers<
     country: string | null;
     lat: number;
     lng: number;
-    views: number;
   },
 >(points: LayoutInput<G>[], pin: number, openCity: string | null): Layout<G> {
   const byCity = new Map<string, LayoutInput<G>[]>();
@@ -108,7 +107,7 @@ export function layoutMarkers<
 
   const cities = [...byCity.entries()].map(([key, members]) => ({
     key,
-    members: [...members].sort((a, b) => b.gym.views - a.gym.views),
+    members: [...members].sort((a, b) => a.gym.code.localeCompare(b.gym.code)),
     cx: members.reduce((a, m) => a + m.x, 0) / members.length,
     cy: members.reduce((a, m) => a + m.y, 0) / members.length,
     depth: Math.max(...members.map((m) => m.depth)),
